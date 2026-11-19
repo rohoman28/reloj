@@ -1,894 +1,777 @@
 <!DOCTYPE html>
-<html lang="es">
+<html lang="es" class="h-full bg-black text-slate-100 antialiased selection:bg-indigo-500 selection:text-white">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>AOD Ambient Focus Clock</title>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+  <title>AOD Focus Hub & Timer</title>
+  <meta name="description" content="Reloj AOD, Temporizador Pomodoro, Sonidos Ambientales y Registro por Asignaturas" />
+  <meta name="theme-color" content="#000000" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="AOD Focus" />
+
   <!-- Tailwind CSS CDN -->
   <script src="https://cdn.tailwindcss.com"></script>
-  <!-- Google Fonts: Inter & JetBrains Mono -->
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=JetBrains+Mono:wght@200;300;400;500&display=swap" rel="stylesheet">
-  <!-- Lucide Icons -->
-  <script src="https://unpkg.com/lucide@latest"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            mono: ['JetBrains Mono', 'ui-monospace', 'SFMono-Regular', 'Menlo', 'Monaco', 'Consolas', 'monospace'],
+            sans: ['Inter', 'system-ui', '-apple-system', 'BlinkMacSystemFont', 'Segoe UI', 'Roboto', 'sans-serif'],
+          },
+          colors: {
+            oled: '#000000',
+            card: 'rgba(255, 255, 255, 0.04)',
+            border: 'rgba(255, 255, 255, 0.08)',
+          }
+        }
+      }
+    }
+  </script>
+
+  <!-- Phosphor Icons -->
+  <script src="https://unpkg.com/@phosphor-icons/web"></script>
+
+  <!-- PWA Dynamic Manifest Generator -->
+  <script>
+    (function generateManifest() {
+      const manifest = {
+        name: "AOD Focus Hub",
+        short_name: "Focus AOD",
+        start_url: "./index.html",
+        display: "standalone",
+        background_color: "#000000",
+        theme_color: "#000000",
+        icons: [
+          {
+            src: "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'><rect width='512' height='512' fill='%23000000'/><circle cx='256' cy='256' r='180' stroke='%236366f1' stroke-width='32' fill='none'/><text x='256' y='280' font-size='120' fill='%23ffffff' font-family='sans-serif' text-anchor='middle' font-weight='bold'>AOD</text></svg>",
+            sizes: "512x512",
+            type: "image/svg+xml",
+            purpose: "any maskable"
+          }
+        ]
+      };
+      const stringManifest = JSON.stringify(manifest);
+      const blob = new Blob([stringManifest], { type: 'application/json' });
+      const manifestURL = URL.createObjectURL(blob);
+      const link = document.createElement('link');
+      link.rel = 'manifest';
+      link.href = manifestURL;
+      document.head.appendChild(link);
+    })();
+  </script>
+
   <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@300;400;500;600&display=swap');
+
     body {
-      font-family: 'Inter', sans-serif;
-      background-color: #000000;
-      color: #e2e8f0;
-      overflow: hidden;
+      touch-action: manipulation;
       user-select: none;
       -webkit-user-select: none;
+      -webkit-tap-highlight-color: transparent;
+      background-color: #000000;
     }
-    .font-mono-num {
-      font-family: 'JetBrains Mono', monospace;
-      font-variant-numeric: tabular-nums;
-    }
-    /* Smooth transitions for fade effect */
-    .fade-ui {
-      transition: opacity 0.6s cubic-bezier(0.4, 0, 0.2, 1);
-    }
-    /* Shift animation container for OLED Burn-In protection */
-    #aod-content-wrapper {
-      transition: transform 3s ease-in-out;
-    }
-    /* Breathing animation circle */
-    @keyframes pulse-expand {
-      0% { transform: scale(0.85); opacity: 0.3; }
-      50% { transform: scale(1.4); opacity: 0.85; }
-      100% { transform: scale(0.85); opacity: 0.3; }
-    }
-    .animate-breathe {
-      animation: pulse-expand 8s ease-in-out infinite;
-    }
-    /* Pulsing colon */
-    @keyframes soft-pulse {
-      0%, 100% { opacity: 1; }
-      50% { opacity: 0.25; }
-    }
-    .colon-pulse {
-      animation: soft-pulse 2s infinite ease-in-out;
-    }
-    /* Custom scrollbar for settings if needed */
-    ::-webkit-scrollbar {
+
+    .custom-scrollbar::-webkit-scrollbar {
       width: 4px;
     }
-    ::-webkit-scrollbar-thumb {
-      background: #334155;
+    .custom-scrollbar::-webkit-scrollbar-track {
+      background: rgba(0, 0, 0, 0.2);
+    }
+    .custom-scrollbar::-webkit-scrollbar-thumb {
+      background: rgba(255, 255, 255, 0.15);
       border-radius: 4px;
+    }
+
+    @keyframes pulse-slow {
+      0%, 100% { opacity: 0.2; transform: scale(1); }
+      50% { opacity: 0.6; transform: scale(1.08); }
+    }
+    .animate-breathe {
+      animation: pulse-slow 8s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+    }
+
+    .burn-in-shift {
+      transition: transform 1.5s ease-in-out;
     }
   </style>
 </head>
-<body class="h-screen w-screen relative bg-black flex flex-col justify-between items-center overflow-hidden">
+<body class="h-full w-full overflow-hidden flex flex-col justify-between p-4 md:p-6 bg-black text-slate-200 font-sans relative">
 
-  <!-- Dimming Overlay (Controlled by brightness slider) -->
-  <div id="dimmer-overlay" class="pointer-events-none absolute inset-0 bg-black z-40 transition-opacity duration-300" style="opacity: 0;"></div>
+  <!-- CAPA DE MÁSCARA PARA MODO DIMMING / OBSCURIDAD -->
+  <div id="dimmerOverlay" class="fixed inset-0 bg-black pointer-events-none z-40 transition-opacity duration-300 opacity-0"></div>
 
-  <!-- MAIN AOD CONTAINER (Shifted slightly periodically for burn-in protection) -->
-  <main id="aod-content-wrapper" class="w-full h-full flex flex-col items-center justify-center relative z-10 px-4">
-    
-    <!-- Mode Selector Tabs (Clock / Pomodoro / Stopwatch) -->
-    <div id="mode-selector" class="fade-ui flex items-center space-x-2 bg-neutral-900/60 backdrop-blur-md px-3 py-1.5 rounded-full border border-neutral-800/80 mb-6 sm:mb-10 text-xs font-medium tracking-wide text-neutral-400">
-      <button onclick="setMode('clock')" id="tab-clock" class="px-3 py-1 rounded-full transition-all duration-300 text-amber-400 bg-neutral-800/80">Reloj</button>
-      <button onclick="setMode('pomodoro')" id="tab-pomodoro" class="px-3 py-1 rounded-full transition-all duration-300 hover:text-neutral-200">Pomodoro</button>
-      <button onclick="setMode('stopwatch')" id="tab-stopwatch" class="px-3 py-1 rounded-full transition-all duration-300 hover:text-neutral-200">Cronómetro</button>
+  <!-- VÍDEO OCULTO DE RESPALDO ANTI-SUSPENSIÓN (YOUTUBE-STYLE WAKE LOCK FALLBACK) -->
+  <video id="keepAwakeVideo" loop muted playsinline class="hidden w-1 h-1 absolute top-0 left-0 opacity-0 pointer-events-none">
+    <source src="data:video/mp4;base64,AAAAIGZ0eXBpc29tAAACAGlzb21pc28yYXZjMW1wNDEAAAAIZnJlZQAAAAdtZGF0AAAAAAA=" type="video/mp4">
+  </video>
+
+  <!-- MODAL DE RESPIRACIÓN -->
+  <div id="breathingOverlay" class="fixed inset-0 z-50 bg-black/95 backdrop-blur-md flex flex-col items-center justify-center transition-opacity duration-500 opacity-0 pointer-events-none">
+    <button id="closeBreathingBtn" class="absolute top-6 right-6 p-3 rounded-full bg-white/10 text-white hover:bg-white/20 transition-all">
+      <i class="ph ph-x text-2xl"></i>
+    </button>
+    <div id="breathCircle" class="w-56 h-56 md:w-72 md:h-72 rounded-full border-4 border-indigo-500/60 bg-indigo-500/10 flex items-center justify-center animate-breathe mb-8 shadow-[0_0_50px_rgba(99,102,241,0.2)]">
+      <span id="breathText" class="text-2xl md:text-3xl font-light tracking-widest text-indigo-200">INHALA</span>
+    </div>
+    <p class="text-slate-400 text-sm md:text-base font-light tracking-wide max-w-xs text-center">Sigue el ritmo de expansión y contracción para enfocar la mente</p>
+  </div>
+
+  <!-- ENCABEZADO SUPERIOR / BARRA DE ESTADO Y SELECCIÓN DE ASIGNATURA -->
+  <header id="topBar" class="flex justify-between items-center z-30 transition-opacity duration-500 w-full max-w-4xl mx-auto">
+    <!-- ASIGNATURA ACTIVA SELECTOR -->
+    <div class="flex items-center gap-2">
+      <div id="activeSubjectBadge" class="flex items-center gap-2 bg-slate-900/80 border border-slate-800 px-3 py-1.5 rounded-full text-xs md:text-sm font-medium transition-all">
+        <span id="activeSubjectDot" class="w-2.5 h-2.5 rounded-full bg-indigo-500"></span>
+        <select id="subjectSelect" class="bg-transparent text-white font-medium focus:outline-none cursor-pointer pr-1">
+          <!-- Opciones dinámicas -->
+        </select>
+      </div>
+      <button id="openSubjectsModalBtn" class="p-2 rounded-full bg-slate-900/80 border border-slate-800 hover:bg-slate-800 text-slate-300 transition-all text-xs" title="Gestionar asignaturas y objetivos">
+        <i class="ph ph-gear-six text-base"></i>
+      </button>
     </div>
 
-    <!-- MAIN DISPLAY AREA -->
-    <div class="flex flex-col items-center justify-center text-center">
+    <!-- BOTONES DE ACCIÓN RÁPIDA -->
+    <div class="flex items-center gap-2 md:gap-3">
+      <!-- BOTÓN PWA INSTALL -->
+      <button id="pwaInstallBtn" class="hidden flex items-center gap-1.5 px-3 py-1.5 bg-indigo-600/90 hover:bg-indigo-500 text-white text-xs rounded-full transition-all shadow-lg font-medium">
+        <i class="ph ph-download-simple text-base"></i>
+        <span class="hidden sm:inline">Instalar App</span>
+      </button>
 
-      <!-- CLOCK DISPLAY -->
-      <div id="display-clock" class="flex flex-col items-center">
-        <div class="flex items-baseline font-mono-num font-extralight tracking-tight text-6xl sm:text-8xl md:text-9xl lg:text-[11rem] text-neutral-100 drop-shadow-sm select-none">
-          <span id="clock-hours">00</span>
-          <span class="colon-pulse mx-1 text-neutral-500 font-light">:</span>
-          <span id="clock-minutes">00</span>
-          <span id="clock-seconds-wrapper" class="text-2xl sm:text-4xl md:text-5xl text-neutral-500 font-light ml-2 sm:ml-4" style="display: inline;">
-            <span class="text-xs text-neutral-600 font-sans block sm:inline">:</span><span id="clock-seconds">00</span>
-          </span>
+      <!-- INDICADOR ANTI-APAGADO (WAKE LOCK) -->
+      <button id="wakeLockToggleBtn" class="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-950/60 border border-emerald-800/80 text-emerald-400 rounded-full text-xs font-mono transition-all" title="Verificar estado Always On Display">
+        <span id="wakeLockDot" class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+        <span id="wakeLockStatusText" class="hidden sm:inline">AOD Activo</span>
+      </button>
+
+      <!-- BOTÓN FULLSCREEN -->
+      <button id="fullscreenBtn" class="p-2 rounded-full bg-slate-900/80 border border-slate-800 text-slate-300 hover:text-white hover:bg-slate-800 transition-all">
+        <i class="ph ph-arrows-out text-lg" id="fullscreenIcon"></i>
+      </button>
+    </div>
+  </header>
+
+  <!-- CONTENIDO PRINCIPAL: RELOJ + TEMPORIZADOR (CENTRADOS) -->
+  <main id="mainContainer" class="flex-1 flex flex-col items-center justify-center my-auto z-30 transition-opacity duration-500 w-full max-w-4xl mx-auto">
+    <div id="burnInWrapper" class="burn-in-shift flex flex-col items-center justify-center text-center">
+      
+      <!-- RELOJ PRINCIPAL ALWAYS ON -->
+      <div id="clockContainer" class="flex flex-col items-center">
+        <div id="clockTime" class="text-6xl sm:text-8xl md:text-9xl font-mono font-extralight tracking-tighter text-white drop-shadow-[0_0_25px_rgba(255,255,255,0.1)]">
+          00:00<span id="clockSeconds" class="text-2xl sm:text-4xl text-slate-500 font-light ml-1">:00</span>
         </div>
-        <div id="clock-date" class="mt-2 sm:mt-4 text-xs sm:text-base font-light tracking-widest text-neutral-400 uppercase">
-          Cargando fecha...
+        <div id="clockDate" class="text-sm sm:text-lg md:text-xl font-light text-slate-400 tracking-widest uppercase mt-1">
+          Jueves, 19 Noviembre
         </div>
       </div>
 
-      <!-- POMODORO DISPLAY -->
-      <div id="display-pomodoro" class="hidden flex-col items-center">
-        <div class="text-xs tracking-widest uppercase text-neutral-500 mb-2 font-medium" id="pomo-status-label">Sesión de Enfoque</div>
-        <div class="font-mono-num font-extralight tracking-tight text-6xl sm:text-8xl md:text-9xl lg:text-[10rem] text-neutral-100 select-none">
-          <span id="pomo-display font-mono-num">25:00</span>
+      <!-- SECCIÓN POMODORO / CRONÓMETRO (COMMODITY COUNTER) -->
+      <div id="timerContainer" class="mt-8 flex flex-col items-center w-full max-w-xs">
+        <div class="flex items-center gap-6 mb-4">
+          <button id="modePomodoroBtn" class="text-xs font-semibold uppercase tracking-wider text-indigo-400 border-b-2 border-indigo-500 pb-1 transition-all">Pomodoro</button>
+          <button id="modeStopwatchBtn" class="text-xs font-semibold uppercase tracking-wider text-slate-500 hover:text-slate-300 pb-1 transition-all">Cronómetro</button>
         </div>
-        <!-- Pomodoro Controls -->
-        <div class="fade-ui flex items-center space-x-4 mt-6">
-          <button onclick="togglePomodoro()" id="btn-pomo-start" class="w-12 h-12 sm:w-14 sm:h-14 rounded-full bg-neutral-800/90 border border-neutral-700 flex items-center justify-center text-neutral-200 hover:bg-neutral-700 transition">
-            <i data-lucide="play" class="w-5 h-5 sm:w-6 sm:h-6 fill-current"></i>
-          </button>
-          <button onclick="resetPomodoro()" class="w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-neutral-900/80 border border-neutral-800 flex items-center justify-center text-neutral-400 hover:text-neutral-200 hover:bg-neutral-800 transition">
-            <i data-lucide="rotate-ccw" class="w-4 h-4 sm:w-5 sm:h-5"></i>
-          </button>
-          <button onclick="skipPomodoroPhase()" class="w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-neutral-900/80 border border-neutral-800 flex items-center justify-center text-neutral-400 hover:text-neutral-200 hover:bg-neutral-800 transition">
-            <i data-lucide="skip-forward" class="w-4 h-4 sm:w-5 sm:h-5"></i>
-          </button>
-        </div>
-      </div>
 
-      <!-- STOPWATCH DISPLAY -->
-      <div id="display-stopwatch" class="hidden flex-col items-center">
-        <div class="text-xs tracking-widest uppercase text-neutral-500 mb-2 font-medium">Tiempo Transcurrido</div>
-        <div class="font-mono-num font-extralight tracking-tight text-6xl sm:text-8xl md:text-9xl lg:text-[10rem] text-neutral-100 select-none">
-          <span id="sw-display">00:00<span class="text-2xl sm:text-4xl text-neutral-500">.0</span></span>
+        <div id="timerDisplay" class="text-4xl sm:text-5xl font-mono font-light tracking-tight text-indigo-200">
+          25:00
         </div>
-        <!-- Stopwatch Controls -->
-        <div class="fade-ui flex items-center space-x-4 mt-6">
-          <button onclick="toggleStopwatch()" id="btn-sw-start" class="w-12 h-12 sm:w-14 sm:h-14 rounded-full bg-neutral-800/90 border border-neutral-700 flex items-center justify-center text-neutral-200 hover:bg-neutral-700 transition">
-            <i data-lucide="play" class="w-5 h-5 sm:w-6 sm:h-6 fill-current"></i>
-          </button>
-          <button onclick="resetStopwatch()" class="w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-neutral-900/80 border border-neutral-800 flex items-center justify-center text-neutral-400 hover:text-neutral-200 hover:bg-neutral-800 transition">
-            <i data-lucide="rotate-ccw" class="w-4 h-4 sm:w-5 sm:h-5"></i>
-          </button>
-        </div>
-      </div>
 
-      <!-- FOCUS QUOTE / CUSTOM GOAL -->
-      <div class="mt-8 sm:mt-12 max-w-md px-4">
-        <p id="focus-quote" onclick="editQuote()" class="text-xs sm:text-sm font-light tracking-wider text-neutral-500 italic hover:text-neutral-300 transition cursor-pointer" title="Haz clic para cambiar tu objetivo">
-          "Haz de cada minuto una obra maestra."
-        </p>
+        <!-- CONTROLES DEL TEMPORIZADOR -->
+        <div class="flex items-center gap-4 mt-5">
+          <button id="resetTimerBtn" class="p-3 rounded-full bg-slate-900 border border-slate-800 text-slate-400 hover:text-white hover:bg-slate-800 transition-all" title="Reiniciar">
+            <i class="ph ph-arrow-counter-clockwise text-xl"></i>
+          </button>
+          <button id="startTimerBtn" class="px-6 py-3 rounded-full bg-indigo-600 hover:bg-indigo-500 text-white font-medium text-sm flex items-center gap-2 transition-all shadow-[0_0_20px_rgba(99,102,241,0.3)]">
+            <i class="ph ph-play fill-current text-lg" id="startTimerIcon"></i>
+            <span id="startTimerText">Iniciar</span>
+          </button>
+          <button id="skipTimerBtn" class="p-3 rounded-full bg-slate-900 border border-slate-800 text-slate-400 hover:text-white hover:bg-slate-800 transition-all" title="Siguiente etapa">
+            <i class="ph ph-fast-forward text-xl"></i>
+          </button>
+        </div>
+
+        <!-- INDICADOR DE PROGRESO DE OBJETIVO DE LA ASIGNATURA -->
+        <div class="mt-6 w-full bg-slate-900/90 border border-slate-800 rounded-xl p-3 flex flex-col gap-1.5">
+          <div class="flex justify-between text-xs text-slate-400">
+            <span id="subjectProgressLabel">Objetivo de Asignatura:</span>
+            <span id="subjectProgressPercent" class="font-mono text-indigo-400 font-semibold">0%</span>
+          </div>
+          <div class="w-full h-2 bg-slate-800 rounded-full overflow-hidden">
+            <div id="subjectProgressBar" class="h-full bg-indigo-500 transition-all duration-500 w-0"></div>
+          </div>
+          <div class="flex justify-between text-[11px] text-slate-500 font-mono">
+            <span id="subjectHoursDone">0.0h esta semana</span>
+            <span id="subjectHoursGoal">Meta: 0h/sem</span>
+          </div>
+        </div>
       </div>
 
     </div>
   </main>
 
-  <!-- BREATHING GUIDE OVERLAY CONTAINER (Toggled on demand) -->
-  <div id="breathing-overlay" class="hidden absolute inset-0 z-20 flex flex-col items-center justify-center pointer-events-none">
-    <div id="breathe-circle" class="w-48 h-48 sm:w-64 sm:h-64 rounded-full border border-amber-500/30 bg-amber-500/5 flex items-center justify-center animate-breathe backdrop-blur-[2px]">
-      <div class="w-32 h-32 sm:w-44 sm:h-44 rounded-full border border-amber-500/20 bg-amber-500/10 flex items-center justify-center">
-        <span id="breathe-text" class="text-xs sm:text-sm tracking-widest text-amber-200/80 uppercase font-light">Respira</span>
-      </div>
-    </div>
-    <span class="text-xs text-neutral-500 mt-8 tracking-widest uppercase">Guía de Respiración (4-7-8)</span>
-  </div>
-
-  <!-- BOTTOM CONTROL BAR (Fades out automatically) -->
-  <header id="control-bar" class="fade-ui fixed bottom-6 z-50 flex items-center justify-between w-11/12 max-w-3xl bg-neutral-900/70 backdrop-blur-md border border-neutral-800/80 rounded-2xl px-4 py-2.5 shadow-2xl transition-all duration-500">
+  <!-- BARRA INFERIOR DE NAVEGACIÓN Y CONTROLES AMBIENTALES -->
+  <footer id="bottomBar" class="z-30 transition-opacity duration-500 w-full max-w-4xl mx-auto flex flex-col gap-4">
     
-    <!-- Left Tools: Sound & Breath -->
-    <div class="flex items-center space-x-1 sm:space-x-2">
-      <!-- Ambient Noise Button & Dropdown Trigger -->
-      <button onclick="toggleAudioMenu()" class="flex items-center space-x-1.5 px-3 py-1.5 rounded-xl text-xs font-medium text-neutral-300 hover:bg-neutral-800/80 transition" id="btn-audio-toggle">
-        <i data-lucide="volume-2" class="w-4 h-4 text-neutral-400" id="audio-icon"></i>
-        <span id="audio-label" class="hidden sm:inline">Sonido</span>
-      </button>
+    <!-- DESPLEGABLE / PANEL DE SONIDOS Y FUENTES -->
+    <div id="soundPanel" class="hidden bg-slate-950/90 border border-slate-800 rounded-2xl p-4 md:p-6 backdrop-blur-xl transition-all shadow-2xl">
+      
+      <!-- PESTAÑAS DE FUENTE DE AUDIO -->
+      <div class="flex border-b border-slate-800 mb-4 text-xs md:text-sm font-medium">
+        <button id="tabAmbientBtn" class="flex-1 py-2 text-center text-indigo-400 border-b-2 border-indigo-500">Ruido/Binaural</button>
+        <button id="tabYouTubeBtn" class="flex-1 py-2 text-center text-slate-400 hover:text-slate-200">YouTube / Enlace</button>
+        <button id="tabMediaSessionBtn" class="flex-1 py-2 text-center text-slate-400 hover:text-slate-200">Audio Detectado</button>
+      </div>
 
-      <!-- Breathing Guide Toggle -->
-      <button onclick="toggleBreathing()" id="btn-breathe" class="flex items-center space-x-1.5 px-3 py-1.5 rounded-xl text-xs font-medium text-neutral-300 hover:bg-neutral-800/80 transition">
-        <i data-lucide="wind" class="w-4 h-4 text-neutral-400"></i>
-        <span class="hidden sm:inline">Calma</span>
-      </button>
-    </div>
-      <!-- Right Controls: Settings, Brightness, Fullscreen -->
-      <div class="flex items-center space-x-1 sm:space-x-2">
-        <!-- Brightness Dimmer Control -->
-        <div class="relative group flex items-center">
-          <button class="p-2 rounded-xl text-neutral-400 hover:text-neutral-200 hover:bg-neutral-800/80 transition">
-            <i data-lucide="sun" class="w-4 h-4"></i>
+      <!-- CONTENIDO PESTAÑA 1: RUIDO AMBIENTAL & BINAURAL (WEB AUDIO API) -->
+      <div id="contentAmbient" class="space-y-4">
+        <div class="grid grid-cols-2 sm:grid-cols-4 gap-2">
+          <button id="noiseBrownBtn" class="p-3 rounded-xl bg-slate-900 border border-slate-800 text-xs text-left hover:border-slate-700 transition-all flex flex-col gap-1">
+            <span class="font-semibold text-slate-200">Ruido Marrón</span>
+            <span class="text-[10px] text-slate-500">Graves profundos</span>
           </button>
-          <!-- Popup Slider -->
-          <div class="hidden group-hover:flex absolute bottom-full left-1/2 -translate-x-1/2 mb-2 p-3 bg-neutral-900 border border-neutral-800 rounded-xl shadow-xl flex-col items-center w-32">
-            <span class="text-[10px] text-neutral-400 mb-1">Brillo AOD</span>
-            <input type="range" id="brightness-slider" min="0" max="85" value="0" oninput="adjustBrightness(this.value)" class="w-full accent-amber-500 cursor-pointer">
-          </div>
+          <button id="noisePinkBtn" class="p-3 rounded-xl bg-slate-900 border border-slate-800 text-xs text-left hover:border-slate-700 transition-all flex flex-col gap-1">
+            <span class="font-semibold text-slate-200">Ruido Rosa</span>
+            <span class="text-[10px] text-slate-500">Lluvia suave</span>
+          </button>
+          <button id="binauralAlphaBtn" class="p-3 rounded-xl bg-slate-900 border border-slate-800 text-xs text-left hover:border-slate-700 transition-all flex flex-col gap-1">
+            <span class="font-semibold text-slate-200">Alfa (10Hz)</span>
+            <span class="text-[10px] text-slate-500">Concentración</span>
+          </button>
+          <button id="binauralThetaBtn" class="p-3 rounded-xl bg-slate-900 border border-slate-800 text-xs text-left hover:border-slate-700 transition-all flex flex-col gap-1">
+            <span class="font-semibold text-slate-200">Theta (6Hz)</span>
+            <span class="text-[10px] text-slate-500">Meditación</span>
+          </button>
         </div>
+        <div class="flex items-center gap-3">
+          <i class="ph ph-speaker-high text-slate-400"></i>
+          <input type="range" id="volumeSlider" min="0" max="1" step="0.01" value="0.5" class="w-full accent-indigo-500 bg-slate-800 h-1.5 rounded-lg appearance-none cursor-pointer">
+        </div>
+      </div>
 
-        <!-- Wake Lock Indicator Status -->
-        <button id="btn-wakelock-status" onclick="requestWakeLockToggle()" title="Estado Mantener Pantalla Encendida" class="p-2 rounded-xl text-amber-400 hover:bg-neutral-800/80 transition">
-          <i data-lucide="shield-check" class="w-4 h-4"></i>
+      <!-- CONTENIDO PESTAÑA 2: REPRODUCTOR YOUTUBE/YOUTUBE MUSIC EMETIDO -->
+      <div id="contentYouTube" class="hidden space-y-3">
+        <div class="flex gap-2">
+          <input type="text" id="ytUrlInput" placeholder="Pega enlace de YouTube o YouTube Music..." class="flex-1 bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500" />
+          <button id="loadYtBtn" class="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-medium transition-all">Cargar</button>
+        </div>
+        <div class="aspect-video w-full rounded-xl overflow-hidden bg-black border border-slate-800">
+          <iframe id="ytPlayerIframe" class="w-full h-full" src="" title="YouTube Player" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
+        </div>
+      </div>
+
+      <!-- CONTENIDO PESTAÑA 3: MEDIASESSION (REPRODUCCIÓN NATIVA DEL SISTEMA) -->
+      <div id="contentMediaSession" class="hidden space-y-3 text-center py-4">
+        <div class="p-4 rounded-xl bg-slate-900/60 border border-slate-800 flex flex-col items-center gap-2">
+          <i class="ph ph-music-notes text-3xl text-indigo-400 animate-bounce"></i>
+          <p id="mediaSessionTitle" class="text-sm font-medium text-slate-200">No se detecta reproducción nativa activa</p>
+          <p id="mediaSessionArtist" class="text-xs text-slate-500">Reproduce contenido en Spotify, YouTube u otra app para controlarlo aquí</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- BOTONES DE ACCIÓN DE BARRA INFERIOR -->
+    <div class="flex items-center justify-between bg-slate-950/80 border border-slate-800/80 rounded-full px-4 py-2 backdrop-blur-md">
+      <div class="flex items-center gap-2">
+        <button id="toggleSoundPanelBtn" class="flex items-center gap-2 px-3 py-1.5 rounded-full bg-slate-900 hover:bg-slate-800 border border-slate-800 text-xs text-slate-300 transition-all">
+          <i class="ph ph-headphones text-base text-indigo-400"></i>
+          <span>Sonido</span>
         </button>
-
-        <!-- Settings Drawer Trigger -->
-        <button onclick="toggleSettingsModal()" class="p-2 rounded-xl text-neutral-400 hover:text-neutral-200 hover:bg-neutral-800/80 transition">
-          <i data-lucide="sliders" class="w-4 h-4"></i>
-        </button>
-
-        <!-- Fullscreen Toggle -->
-        <button onclick="toggleFullscreen()" class="p-2 rounded-xl text-neutral-400 hover:text-neutral-200 hover:bg-neutral-800/80 transition">
-          <i data-lucide="maximize" class="w-4 h-4" id="fullscreen-icon"></i>
+        <button id="openBreathingBtn" class="flex items-center gap-2 px-3 py-1.5 rounded-full bg-slate-900 hover:bg-slate-800 border border-slate-800 text-xs text-slate-300 transition-all">
+          <i class="ph ph-wind text-base text-emerald-400"></i>
+          <span class="hidden sm:inline">Respiración</span>
         </button>
       </div>
-    </header>
 
-    <!-- Invisible Fallback Video Element to Force Keeping Display Awake (YouTube trick) -->
-    <video id="wake-lock-video" loop muted playsinline style="display:none; width: 1px; height: 1px; opacity: 0.01;">
-      <source src="data:video/mp4;base64,AAAAIGZ0eXBpc29tAAACAGlzb21pc28yYXZjMW1wNDEAAAAIZnJlZQAAAAptZGF0AAAAAA==" type="video/mp4">
-    </video>
-
-  <!-- AUDIO SELECTION POPUP MENU -->
-  <div id="audio-menu" class="hidden fixed bottom-20 left-6 sm:left-12 z-50 bg-neutral-900/90 backdrop-blur-lg border border-neutral-800 rounded-2xl p-4 w-64 shadow-2xl">
-    <div class="text-xs font-semibold uppercase tracking-wider text-neutral-400 mb-3 flex justify-between items-center">
-      <span>Generador Ambiental</span>
-      <button onclick="toggleAudioMenu()" class="text-neutral-500 hover:text-neutral-300"><i data-lucide="x" class="w-3.5 h-3.5"></i></button>
-    </div>
-    
-    <div class="space-y-1.5 text-xs">
-      <button onclick="playAmbientSound('brown')" class="w-full text-left px-3 py-2 rounded-xl flex items-center justify-between text-neutral-300 hover:bg-neutral-800/80 transition sound-opt" id="sound-brown">
-        <span>Lluvia Profunda (Brown)</span>
-        <i data-lucide="check" class="w-3.5 h-3.5 text-amber-400 hidden"></i>
-      </button>
-      <button onclick="playAmbientSound('pink')" class="w-full text-left px-3 py-2 rounded-xl flex items-center justify-between text-neutral-300 hover:bg-neutral-800/80 transition sound-opt" id="sound-pink">
-        <span>Cascada Suave (Pink)</span>
-        <i data-lucide="check" class="w-3.5 h-3.5 text-amber-400 hidden"></i>
-      </button>
-      <button onclick="playAmbientSound('white')" class="w-full text-left px-3 py-2 rounded-xl flex items-center justify-between text-neutral-300 hover:bg-neutral-800/80 transition sound-opt" id="sound-white">
-        <span>Aire Constante (White)</span>
-        <i data-lucide="check" class="w-3.5 h-3.5 text-amber-400 hidden"></i>
-      </button>
-      <button onclick="playAmbientSound('binaural')" class="w-full text-left px-3 py-2 rounded-xl flex items-center justify-between text-neutral-300 hover:bg-neutral-800/80 transition sound-opt" id="sound-binaural">
-        <span>Ondas Theta Enfoque (6Hz)</span>
-        <i data-lucide="check" class="w-3.5 h-3.5 text-amber-400 hidden"></i>
-      </button>
-      <button onclick="stopAmbientSound()" class="w-full text-left px-3 py-2 rounded-xl flex items-center justify-between text-red-400/90 hover:bg-neutral-800/80 transition mt-2 border-t border-neutral-800/60 pt-2">
-        <span>Silenciar Audio</span>
-      </button>
-    </div>
-
-    <!-- Volume Slider -->
-    <div class="mt-4 pt-3 border-t border-neutral-800/60">
-      <div class="flex items-center justify-between text-[11px] text-neutral-400 mb-1">
-        <span>Volumen Ambient</span>
-        <span id="vol-value-txt">50%</span>
+      <!-- CONTROL DE BRILLO / MODO OBSCURO -->
+      <div class="flex items-center gap-3">
+        <i class="ph ph-moon text-slate-400 text-sm"></i>
+        <input type="range" id="dimmerSlider" min="0" max="0.9" step="0.05" value="0" class="w-20 sm:w-28 accent-indigo-500 bg-slate-800 h-1 rounded-lg appearance-none cursor-pointer" title="Ajustar oscuridad de la pantalla">
+        <button id="statsOpenBtn" class="p-2 rounded-full bg-slate-900 hover:bg-slate-800 border border-slate-800 text-slate-300 transition-all" title="Ver Estadísticas y Objetivos por Asignatura">
+          <i class="ph ph-chart-bar text-lg"></i>
+        </button>
       </div>
-      <input type="range" id="volume-slider" min="0" max="100" value="50" oninput="setAudioVolume(this.value)" class="w-full accent-amber-500 cursor-pointer">
     </div>
-  </div>
+  </footer>
 
-  <!-- SETTINGS MODAL -->
-  <div id="settings-modal" class="hidden fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-4">
-    <div class="bg-neutral-900 border border-neutral-800 rounded-3xl max-w-md w-full p-6 text-neutral-200 shadow-2xl relative">
-      <div class="flex items-center justify-between mb-6">
-        <h3 class="text-base font-medium text-neutral-100 flex items-center gap-2">
-          <i data-lucide="sliders" class="w-4 h-4 text-amber-400"></i> Ajustes de Visualización
+  <!-- MODAL DE ESTADÍSTICAS Y OBJETIVOS POR ASIGNATURA -->
+  <div id="statsModal" class="fixed inset-0 z-50 bg-black/90 backdrop-blur-md flex items-center justify-center p-4 transition-opacity duration-300 opacity-0 pointer-events-none">
+    <div class="bg-slate-950 border border-slate-800 rounded-2xl w-full max-w-lg p-6 max-h-[90vh] overflow-y-auto custom-scrollbar flex flex-col gap-5">
+      <div class="flex justify-between items-center border-b border-slate-800 pb-3">
+        <div class="flex items-center gap-2">
+          <i class="ph ph-chart-line-up text-xl text-indigo-400"></i>
+          <h2 class="text-lg font-semibold text-white">Objetivos y Estadísticas</h2>
+        </div>
+        <button id="closeStatsBtn" class="text-slate-400 hover:text-white"><i class="ph ph-x text-xl"></i></button>
+      </div>
+
+      <!-- RESUMEN DE PUNTOS Y NIVEL -->
+      <div class="bg-indigo-950/30 border border-indigo-900/50 rounded-xl p-4 flex items-center justify-between">
+        <div>
+          <span class="text-xs text-indigo-300 uppercase font-semibold">Nivel Actual</span>
+          <h3 id="userRankTitle" class="text-lg font-bold text-white">Estudiante Enfocado</h3>
+          <p id="userXpTotal" class="text-xs text-indigo-400 font-mono mt-0.5">0 XP acumulados</p>
+        </div>
+        <div class="w-12 h-12 rounded-full bg-indigo-600/20 border border-indigo-500/40 flex items-center justify-center">
+          <i class="ph ph-trophy text-2xl text-amber-400"></i>
+        </div>
+      </div>
+
+      <!-- DESGLOSE DE ASIGNATURAS Y OBJETIVOS SEMANALES -->
+      <div>
+        <h3 class="text-sm font-semibold text-slate-300 mb-3 flex justify-between items-center">
+          <span>Objetivos Semanales por Asignatura</span>
+          <span class="text-xs text-slate-500 font-normal">Esta semana</span>
         </h3>
-        <button onclick="toggleSettingsModal()" class="text-neutral-400 hover:text-neutral-100">
-          <i data-lucide="x" class="w-5 h-5"></i>
-        </button>
-      </div>
-
-      <div class="space-y-5 text-xs sm:text-sm">
-        <!-- Show Seconds Toggle -->
-        <div class="flex items-center justify-between">
-          <span>Mostrar segundos en reloj</span>
-          <input type="checkbox" id="toggle-seconds" checked onchange="toggleSecondsDisplay(this.checked)" class="w-4 h-4 accent-amber-500 rounded cursor-pointer">
+        <div id="subjectsGoalList" class="space-y-3">
+          <!-- Elementos dinámicos generados con JS -->
         </div>
-
-        <!-- 24h format Toggle -->
-        <div class="flex items-center justify-between">
-          <span>Formato 24 Horas</span>
-          <input type="checkbox" id="toggle-24h" checked onchange="toggle24HFormat(this.checked)" class="w-4 h-4 accent-amber-500 rounded cursor-pointer">
-        </div>
-
-        <!-- OLED Burn-In Shift Toggle -->
-        <div class="flex items-center justify-between">
-          <div>
-            <div class="font-normal">Anti Burn-In (OLED)</div>
-            <div class="text-[11px] text-neutral-500">Mueve ligeramente el texto cada 2 min.</div>
-          </div>
-          <input type="checkbox" id="toggle-burnin" checked onchange="toggleBurnInProtection(this.checked)" class="w-4 h-4 accent-amber-500 rounded cursor-pointer">
-        </div>
-
-        <!-- Pomodoro Duration Setup -->
-        <div class="border-t border-neutral-800 pt-4">
-          <div class="font-normal mb-2 text-neutral-300">Tiempos Pomodoro (minutos)</div>
-          <div class="grid grid-cols-2 gap-3">
-            <div>
-              <label class="text-[11px] text-neutral-500 block mb-1">Enfoque</label>
-              <input type="number" id="input-pomo-work" value="25" min="1" max="120" class="w-full bg-neutral-800 border border-neutral-700 rounded-xl px-3 py-1.5 text-neutral-100 text-xs">
-            </div>
-            <div>
-              <label class="text-[11px] text-neutral-500 block mb-1">Descanso</label>
-              <input type="number" id="input-pomo-rest" value="5" min="1" max="60" class="w-full bg-neutral-800 border border-neutral-700 rounded-xl px-3 py-1.5 text-neutral-100 text-xs">
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <div class="mt-6 flex justify-end">
-        <button onclick="saveSettings()" class="bg-amber-500 hover:bg-amber-600 text-black font-medium text-xs px-5 py-2 rounded-xl transition">
-          Guardar Cambios
-        </button>
       </div>
     </div>
   </div>
 
-  <!-- JAVASCRIPT LOGIC -->
+  <!-- MODAL DE GESTIÓN DE ASIGNATURAS -->
+  <div id="subjectsModal" class="fixed inset-0 z-50 bg-black/90 backdrop-blur-md flex items-center justify-center p-4 transition-opacity duration-300 opacity-0 pointer-events-none">
+    <div class="bg-slate-950 border border-slate-800 rounded-2xl w-full max-w-md p-6 flex flex-col gap-5">
+      <div class="flex justify-between items-center border-b border-slate-800 pb-3">
+        <h2 class="text-lg font-semibold text-white">Configurar Asignaturas</h2>
+        <button id="closeSubjectsModalBtn" class="text-slate-400 hover:text-white"><i class="ph ph-x text-xl"></i></button>
+      </div>
+
+      <!-- FORMULARIO CREAR / EDITAR ASIGNATURA -->
+      <form id="newSubjectForm" class="space-y-3">
+        <div>
+          <label class="block text-xs font-medium text-slate-400 mb-1">Nombre de la Asignatura</label>
+          <input type="text" id="newSubjectName" placeholder="Ej. Física Teórica, Programación..." required class="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-indigo-500" />
+        </div>
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="block text-xs font-medium text-slate-400 mb-1">Meta semanal (horas)</label>
+            <input type="number" id="newSubjectGoal" min="1" max="100" value="10" required class="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-indigo-500 font-mono" />
+          </div>
+          <div>
+            <label class="block text-xs font-medium text-slate-400 mb-1">Color distintivo</label>
+            <input type="color" id="newSubjectColor" value="#6366f1" class="w-full h-9 bg-slate-900 border border-slate-800 rounded-xl cursor-pointer p-1" />
+          </div>
+        </div>
+        <button type="submit" class="w-full py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-semibold transition-all">Guardar Asignatura</button>
+      </form>
+
+      <!-- LISTADO Y EDICIÓN -->
+      <div class="border-t border-slate-800 pt-3">
+        <span class="text-xs font-medium text-slate-400">Asignaturas Existentes:</span>
+        <div id="manageSubjectsList" class="mt-2 space-y-2 max-h-48 overflow-y-auto custom-scrollbar">
+          <!-- Generado dinámicamente -->
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- SCRIPT LÓGICA PRINCIPAL -->
   <script>
-    // --- APP STATE ---
-    let currentMode = 'clock'; // clock | pomodoro | stopwatch
-    let activeTheme = 'amber';
-    let is24Hour = true;
-    let showSeconds = true;
-    let burnInEnabled = true;
+    // --- ESTADO DE LA APLICACIÓN Y ASIGNATURAS ---
+    const DEFAULT_SUBJECTS = [
+      { id: 'general', name: 'General / Estudio', color: '#6366f1', targetHours: 15 },
+      { id: 'math', name: 'Matemáticas', color: '#10b981', targetHours: 10 },
+      { id: 'physics', name: 'Física', color: '#f59e0b', targetHours: 12 }
+    ];
 
-    // Wake Lock State
-    let wakeLock = null;
-    let wakeLockEnabled = true;
-
-    // Pomodoro State
-    let pomoWorkTime = 25 * 60;
-    let pomoRestTime = 5 * 60;
-    let pomoTimeLeft = 25 * 60;
-    let isPomoRunning = false;
-    let isPomoBreak = false;
-    let pomoInterval = null;
-
-    // Stopwatch State
-    let swTime = 0;
-    let isSwRunning = false;
-    let swInterval = null;
-
-    // Web Audio API State
-    let audioCtx = null;
-    let currentNoiseNode = null;
-    let masterGain = null;
-    let activeSoundType = null;
-    let binauralOscLeft = null;
-    let binauralOscRight = null;
-
-    // Auto Hide UI Timer
-    let hideUiTimeout = null;
-
-    // --- INITIALIZATION ---
-    window.onload = () => {
-      lucide.createIcons();
-      updateClock();
-      setInterval(updateClock, 1000);
-      setupBurnInProtection();
-      setupActivityListeners();
-      resetHideUiTimer();
+    let state = {
+      subjects: JSON.parse(localStorage.getItem('aod_subjects')) || DEFAULT_SUBJECTS,
+      activeSubjectId: localStorage.getItem('aod_active_subject') || 'general',
+      weeklyLogs: JSON.parse(localStorage.getItem('aod_weekly_logs')) || {}, // Key: YYYY-WW, Value: { subjectId: seconds }
+      totalXP: parseInt(localStorage.getItem('aod_total_xp')) || 0,
       
-      // Auto-activate Screen Wake Lock
-      requestWakeLock();
+      // Temporizador
+      timerMode: 'pomodoro', // 'pomodoro' | 'stopwatch'
+      pomodoroDuration: 25 * 60,
+      timerSeconds: 25 * 60,
+      timerRunning: false,
+      timerInterval: null,
       
-      // Re-apply Wake Lock if visibility changes (e.g. user switches tabs and returns)
-      document.addEventListener('visibilitychange', () => {
-        if (document.visibilityState === 'visible' && wakeLockEnabled) {
-          requestWakeLock();
-        }
-      });
+      // Sonido
+      activeNoise: null,
+      audioCtx: null,
+      gainNode: null,
+      oscillator1: null,
+      oscillator2: null,
+      
+      // WakeLock
+      wakeLock: null
     };
 
-    // --- SCREEN WAKE LOCK (Always On Display Engine) ---
-    async function requestWakeLock() {
-      if (!wakeLockEnabled) return;
-
-      // Method 1: Native Navigator Screen Wake Lock API
-      if ('wakeLock' in navigator) {
-        try {
-          wakeLock = await navigator.wakeLock.request('screen');
-          updateWakeLockUI(true);
-          
-          wakeLock.addEventListener('release', () => {
-            updateWakeLockUI(false);
-          });
-        } catch (err) {
-          console.warn(`Native WakeLock error (${err.name}, ${err.message}). Activating Video Fallback...`);
-          activateVideoWakeLockFallback();
-        }
-      } else {
-        // Method 2: Video Loop Fallback (YouTube-style keep awake for unsupported browsers)
-        activateVideoWakeLockFallback();
-      }
-    }
-
-    function activateVideoWakeLockFallback() {
-      const video = document.getElementById('wake-lock-video');
-      if (video) {
-        video.play().then(() => {
-          updateWakeLockUI(true);
-        }).catch(() => {
-          updateWakeLockUI(false);
-        });
-      }
-    }
-
-    function releaseWakeLock() {
-      if (wakeLock !== null) {
-        wakeLock.release().then(() => {
-          wakeLock = null;
-        });
-      }
-      const video = document.getElementById('wake-lock-video');
-      if (video) {
-        video.pause();
-      }
-      updateWakeLockUI(false);
-    }
-
-    function requestWakeLockToggle() {
-      wakeLockEnabled = !wakeLockEnabled;
-      if (wakeLockEnabled) {
-        requestWakeLock();
-      } else {
-        releaseWakeLock();
-      }
-    }
-
-    function updateWakeLockUI(active) {
-      const btn = document.getElementById('btn-wakelock-status');
-      if (!btn) return;
-      if (active) {
-        btn.className = "p-2 rounded-xl text-amber-400 hover:bg-neutral-800/80 transition";
-        btn.title = "Pantalla Always-On Activa (No se apagará)";
-      } else {
-        btn.className = "p-2 rounded-xl text-neutral-600 hover:bg-neutral-800/80 transition";
-        btn.title = "Pantalla Always-On Inactiva";
-      }
-    }
-
-    // --- FULLSCREEN ---
-    function toggleFullscreen() {
-      if (!document.fullscreenElement) {
-        document.documentElement.requestFullscreen().then(() => {
-          requestWakeLock(); // Re-ensure wake lock on fullscreen mode
-        }).catch(err => {});
-      } else {
-        if (document.exitFullscreen) {
-          document.exitFullscreen();
-        }
-      }
-    }
-
-    // --- CLOCK LOGIC ---
-    function updateClock() {
+    // Obtenedor de clave de semana actual ISO (YYYY-WW)
+    function getCurrentWeekKey() {
       const now = new Date();
-      let hours = now.getHours();
-      const minutes = String(now.getMinutes()).padStart(2, '0');
-      const seconds = String(now.getSeconds()).padStart(2, '0');
-
-      if (!is24Hour) {
-        hours = hours % 12 || 12;
-      }
-      hours = String(hours).padStart(2, '0');
-
-      document.getElementById('clock-hours').innerText = hours;
-      document.getElementById('clock-minutes').innerText = minutes;
-      document.getElementById('clock-seconds').innerText = seconds;
-
-      // Date string format
-      const options = { weekday: 'long', month: 'long', day: 'numeric' };
-      const dateStr = now.toLocaleDateString('es-ES', options);
-      document.getElementById('clock-date').innerText = dateStr;
+      const d = new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate()));
+      const dayNum = d.getUTCDay() || 7;
+      d.setUTCDate(d.getUTCDate() + 4 - dayNum);
+      const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
+      const weekNo = Math.ceil((((d - yearStart) / 86400000) + 1) / 7);
+      return `${d.getUTCFullYear()}-W${weekNo}`;
     }
 
-    // --- MODE SWITCHING ---
-    function setMode(mode) {
-      currentMode = mode;
-      document.getElementById('display-clock').classList.add('hidden');
-      document.getElementById('display-pomodoro').classList.add('hidden');
-      document.getElementById('display-stopwatch').classList.add('hidden');
+    // --- MANEJO DE ASIGNATURAS Y METAS ---
+    function saveSubjects() {
+      localStorage.setItem('aod_subjects', JSON.stringify(state.subjects));
+      localStorage.setItem('aod_active_subject', state.activeSubjectId);
+      renderSubjectSelector();
+      updateSubjectProgressUI();
+    }
 
-      // Reset tab styling
-      ['clock', 'pomodoro', 'stopwatch'].forEach(m => {
-        const btn = document.getElementById(`tab-${m}`);
-        btn.className = "px-3 py-1 rounded-full transition-all duration-300 hover:text-neutral-200 text-neutral-400";
+    function renderSubjectSelector() {
+      const select = document.getElementById('subjectSelect');
+      select.innerHTML = '';
+      state.subjects.forEach(subj => {
+        const opt = document.createElement('option');
+        opt.value = subj.id;
+        opt.textContent = subj.name;
+        opt.selected = subj.id === state.activeSubjectId;
+        select.appendChild(opt);
       });
 
-      const activeBtn = document.getElementById(`tab-${mode}`);
-      activeBtn.className = `px-3 py-1 rounded-full transition-all duration-300 bg-neutral-800/80 ${getAccentTextColor()}`;
-
-      if (mode === 'clock') {
-        document.getElementById('display-clock').classList.remove('hidden');
-        document.getElementById('display-clock').classList.add('flex');
-      } else if (mode === 'pomodoro') {
-        document.getElementById('display-pomodoro').classList.remove('hidden');
-        document.getElementById('display-pomodoro').classList.add('flex');
-      } else if (mode === 'stopwatch') {
-        document.getElementById('display-stopwatch').classList.remove('hidden');
-        document.getElementById('display-stopwatch').classList.add('flex');
-      }
+      const activeSubj = state.subjects.find(s => s.id === state.activeSubjectId) || state.subjects[0];
+      document.getElementById('activeSubjectDot').style.backgroundColor = activeSubj ? activeSubj.color : '#6366f1';
     }
 
-    // --- POMODORO TIMER ---
-    function togglePomodoro() {
-      if (isPomoRunning) {
-        clearInterval(pomoInterval);
-        isPomoRunning = false;
-        updatePomoPlayBtn(false);
-      } else {
-        isPomoRunning = true;
-        updatePomoPlayBtn(true);
-        pomoInterval = setInterval(() => {
-          if (pomoTimeLeft > 0) {
-            pomoTimeLeft--;
-            renderPomoDisplay();
-          } else {
-            // Switch session
-            isPomoBreak = !isPomoBreak;
-            pomoTimeLeft = isPomoBreak ? pomoRestTime : pomoWorkTime;
-            document.getElementById('pomo-status-label').innerText = isPomoBreak ? 'Tiempo de Descanso' : 'Sesión de Enfoque';
-            playNotificationBeep();
-            renderPomoDisplay();
+    function updateSubjectProgressUI() {
+      const currentWeek = getCurrentWeekKey();
+      const weekData = state.weeklyLogs[currentWeek] || {};
+      const activeSubj = state.subjects.find(s => s.id === state.activeSubjectId) || state.subjects[0];
+      
+      const secondsLogged = weekData[activeSubj.id] || 0;
+      const hoursLogged = (secondsLogged / 3600).toFixed(1);
+      const goalHours = activeSubj.targetHours || 10;
+      const percent = Math.min(100, Math.round((hoursLogged / goalHours) * 100));
+
+      document.getElementById('subjectProgressLabel').textContent = `Objetivo de ${activeSubj.name}:`;
+      document.getElementById('subjectProgressPercent').textContent = `${percent}%`;
+      document.getElementById('subjectProgressBar').style.width = `${percent}%`;
+      document.getElementById('subjectProgressBar').style.backgroundColor = activeSubj.color || '#6366f1';
+      document.getElementById('subjectHoursDone').textContent = `${hoursLogged}h esta semana`;
+      document.getElementById('subjectHoursGoal').textContent = `Meta: ${goalHours}h/sem`;
+    }
+
+    function renderSubjectsGoalList() {
+      const container = document.getElementById('subjectsGoalList');
+      container.innerHTML = '';
+      const currentWeek = getCurrentWeekKey();
+      const weekData = state.weeklyLogs[currentWeek] || {};
+
+      state.subjects.forEach(subj => {
+        const secondsLogged = weekData[subj.id] || 0;
+        const hoursLogged = (secondsLogged / 3600).toFixed(1);
+        const goalHours = subj.targetHours || 10;
+        const percent = Math.min(100, Math.round((hoursLogged / goalHours) * 100));
+
+        const item = document.createElement('div');
+        item.className = 'bg-slate-900 border border-slate-800 rounded-xl p-3 flex flex-col gap-2';
+        item.innerHTML = `
+          <div class="flex justify-between items-center text-xs">
+            <div class="flex items-center gap-2">
+              <span class="w-2.5 h-2.5 rounded-full" style="background-color: ${subj.color}"></span>
+              <span class="font-medium text-slate-200">${subj.name}</span>
+            </div>
+            <span class="font-mono text-indigo-400 font-semibold">${percent}%</span>
+          </div>
+          <div class="w-full h-1.5 bg-slate-800 rounded-full overflow-hidden">
+            <div class="h-full transition-all duration-300" style="width: ${percent}%; background-color: ${subj.color}"></div>
+          </div>
+          <div class="flex justify-between items-center text-[11px] text-slate-400 font-mono">
+            <span>${hoursLogged} / ${goalHours} horas</span>
+            <span class="${percent >= 100 ? 'text-emerald-400 font-semibold' : 'text-slate-500'}">
+              ${percent >= 100 ? '¡Objetivo cumplido! 🎉' : 'En progreso'}
+            </span>
+          </div>
+        `;
+        container.appendChild(item);
+      });
+    }
+
+    function renderManageSubjectsList() {
+      const container = document.getElementById('manageSubjectsList');
+      container.innerHTML = '';
+      state.subjects.forEach((subj, idx) => {
+        const item = document.createElement('div');
+        item.className = 'flex items-center justify-between bg-slate-900 p-2.5 rounded-xl border border-slate-800 text-xs';
+        item.innerHTML = `
+          <div class="flex items-center gap-2">
+            <span class="w-3 h-3 rounded-full" style="background-color: ${subj.color}"></span>
+            <span class="font-medium text-white">${subj.name}</span>
+            <span class="text-slate-500 font-mono">(${subj.targetHours}h/sem)</span>
+          </div>
+          <button class="delete-subj-btn text-rose-400 hover:text-rose-300 p-1" data-id="${subj.id}" ${state.subjects.length <= 1 ? 'disabled style="opacity:0.3"' : ''}>
+            <i class="ph ph-trash text-base"></i>
+          </button>
+        `;
+        container.appendChild(item);
+      });
+
+      document.querySelectorAll('.delete-subj-btn').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+          const id = e.currentTarget.getAttribute('data-id');
+          if (state.subjects.length > 1) {
+            state.subjects = state.subjects.filter(s => s.id !== id);
+            if (state.activeSubjectId === id) state.activeSubjectId = state.subjects[0].id;
+            saveSubjects();
+            renderManageSubjectsList();
           }
+        });
+      });
+    }
+
+    // --- RECOLECCIÓN DE TIEMPO Y XP ---
+    function logFocusSecond() {
+      const weekKey = getCurrentWeekKey();
+      if (!state.weeklyLogs[weekKey]) state.weeklyLogs[weekKey] = {};
+      
+      const subjId = state.activeSubjectId;
+      state.weeklyLogs[weekKey][subjId] = (state.weeklyLogs[weekKey][subjId] || 0) + 1;
+      state.totalXP += 1; // 1 segundo = 1 XP base
+
+      localStorage.setItem('aod_weekly_logs', JSON.stringify(state.weeklyLogs));
+      localStorage.setItem('aod_total_xp', state.totalXP.toString());
+
+      updateSubjectProgressUI();
+      updateRankUI();
+    }
+
+    function updateRankUI() {
+      const xp = state.totalXP;
+      let title = "Novato del Enfoque";
+      if (xp > 3600 * 50) title = "Gran Maestro del Estudio 🏆";
+      else if (xp > 3600 * 20) title = "Especialista en Concentración ⚡";
+      else if (xp > 3600 * 5) title = "Estudiante Constante 📖";
+      else if (xp > 1800) title = "Iniciado del Enfocado ✨";
+
+      document.getElementById('userRankTitle').textContent = title;
+      document.getElementById('userXpTotal').textContent = `${(xp / 60).toFixed(0)} min concentrado (${xp} XP)`;
+    }
+
+    // --- LÓGICA RELOJ Y TEMPORIZADOR ---
+    function updateClock() {
+      const now = new Date();
+      const hours = String(now.getHours()).padStart(2, '0');
+      const minutes = String(now.getMinutes()).padStart(2, '0');
+      const seconds = String(now.getSeconds()).padStart(2, '0');
+      
+      document.getElementById('clockTime').innerHTML = `${hours}:${minutes}<span id="clockSeconds" class="text-2xl sm:text-4xl text-slate-500 font-light ml-1">:${seconds}</span>`;
+
+      const options = { weekday: 'long', day: 'numeric', month: 'long' };
+      document.getElementById('clockDate').textContent = now.toLocaleDateString('es-ES', options);
+    }
+    setInterval(updateClock, 1000);
+    updateClock();
+
+    function formatTime(sec) {
+      const m = Math.floor(sec / 60);
+      const s = sec % 60;
+      return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+    }
+
+    function renderTimer() {
+      document.getElementById('timerDisplay').textContent = formatTime(state.timerSeconds);
+    }
+
+    function toggleTimer() {
+      if (state.timerRunning) {
+        clearInterval(state.timerInterval);
+        state.timerRunning = false;
+        document.getElementById('startTimerIcon').className = 'ph ph-play fill-current text-lg';
+        document.getElementById('startTimerText').textContent = 'Continuar';
+      } else {
+        state.timerRunning = true;
+        document.getElementById('startTimerIcon').className = 'ph ph-pause fill-current text-lg';
+        document.getElementById('startTimerText').textContent = 'Pausar';
+
+        state.timerInterval = setInterval(() => {
+          if (state.timerMode === 'pomodoro') {
+            if (state.timerSeconds > 0) {
+              state.timerSeconds--;
+              logFocusSecond();
+            } else {
+              clearInterval(state.timerInterval);
+              state.timerRunning = false;
+              alert('¡Tiempo Pomodoro completado! Tómate un descanso.');
+              state.timerSeconds = state.pomodoroDuration;
+            }
+          } else {
+            state.timerSeconds++;
+            logFocusSecond();
+          }
+          renderTimer();
         }, 1000);
       }
     }
 
-    function resetPomodoro() {
-      clearInterval(pomoInterval);
-      isPomoRunning = false;
-      isPomoBreak = false;
-      pomoTimeLeft = pomoWorkTime;
-      document.getElementById('pomo-status-label').innerText = 'Sesión de Enfoque';
-      updatePomoPlayBtn(false);
-      renderPomoDisplay();
-    }
+    document.getElementById('startTimerBtn').addEventListener('click', toggleTimer);
+    document.getElementById('resetTimerBtn').addEventListener('click', () => {
+      clearInterval(state.timerInterval);
+      state.timerRunning = false;
+      state.timerSeconds = state.timerMode === 'pomodoro' ? state.pomodoroDuration : 0;
+      document.getElementById('startTimerIcon').className = 'ph ph-play fill-current text-lg';
+      document.getElementById('startTimerText').textContent = 'Iniciar';
+      renderTimer();
+    });
 
-    function skipPomodoroPhase() {
-      isPomoBreak = !isPomoBreak;
-      pomoTimeLeft = isPomoBreak ? pomoRestTime : pomoWorkTime;
-      document.getElementById('pomo-status-label').innerText = isPomoBreak ? 'Tiempo de Descanso' : 'Sesión de Enfoque';
-      renderPomoDisplay();
-    }
+    document.getElementById('modePomodoroBtn').addEventListener('click', () => {
+      state.timerMode = 'pomodoro';
+      state.timerSeconds = state.pomodoroDuration;
+      document.getElementById('modePomodoroBtn').className = 'text-xs font-semibold uppercase tracking-wider text-indigo-400 border-b-2 border-indigo-500 pb-1 transition-all';
+      document.getElementById('modeStopwatchBtn').className = 'text-xs font-semibold uppercase tracking-wider text-slate-500 hover:text-slate-300 pb-1 transition-all';
+      renderTimer();
+    });
 
-    function renderPomoDisplay() {
-      const mins = String(Math.floor(pomoTimeLeft / 60)).padStart(2, '0');
-      const secs = String(pomoTimeLeft % 60).padStart(2, '0');
-      document.getElementById('pomo-display font-mono-num').innerText = `${mins}:${secs}`;
-    }
+    document.getElementById('modeStopwatchBtn').addEventListener('click', () => {
+      state.timerMode = 'stopwatch';
+      state.timerSeconds = 0;
+      document.getElementById('modeStopwatchBtn').className = 'text-xs font-semibold uppercase tracking-wider text-indigo-400 border-b-2 border-indigo-500 pb-1 transition-all';
+      document.getElementById('modePomodoroBtn').className = 'text-xs font-semibold uppercase tracking-wider text-slate-500 hover:text-slate-300 pb-1 transition-all';
+      renderTimer();
+    });
 
-    function updatePomoPlayBtn(running) {
-      const btn = document.getElementById('btn-pomo-start');
-      btn.innerHTML = running ? `<i data-lucide="pause" class="w-5 h-5 sm:w-6 sm:h-6 fill-current"></i>` : `<i data-lucide="play" class="w-5 h-5 sm:w-6 sm:h-6 fill-current"></i>`;
-      lucide.createIcons();
-    }
-
-    // --- STOPWATCH ---
-    function toggleStopwatch() {
-      if (isSwRunning) {
-        clearInterval(swInterval);
-        isSwRunning = false;
-        updateSwPlayBtn(false);
-      } else {
-        isSwRunning = true;
-        updateSwPlayBtn(true);
-        const startTime = Date.now() - swTime;
-        swInterval = setInterval(() => {
-          swTime = Date.now() - startTime;
-          renderSwDisplay();
-        }, 100);
-      }
-    }
-
-    function resetStopwatch() {
-      clearInterval(swInterval);
-      isSwRunning = false;
-      swTime = 0;
-      updateSwPlayBtn(false);
-      renderSwDisplay();
-    }
-
-    function renderSwDisplay() {
-      const totalSeconds = Math.floor(swTime / 1000);
-      const mins = String(Math.floor(totalSeconds / 60)).padStart(2, '0');
-      const secs = String(totalSeconds % 60).padStart(2, '0');
-      const tenths = Math.floor((swTime % 1000) / 100);
-      document.getElementById('sw-display').innerHTML = `${mins}:${secs}<span class="text-2xl sm:text-4xl text-neutral-500">.${tenths}</span>`;
-    }
-
-    function updateSwPlayBtn(running) {
-      const btn = document.getElementById('btn-sw-start');
-      btn.innerHTML = running ? `<i data-lucide="pause" class="w-5 h-5 sm:w-6 sm:h-6 fill-current"></i>` : `<i data-lucide="play" class="w-5 h-5 sm:w-6 sm:h-6 fill-current"></i>`;
-      lucide.createIcons();
-    }
-
-    // --- WEB AUDIO API AMBIENT SOUND GENERATOR ---
-    function initAudio() {
-      if (!audioCtx) {
-        const AudioContext = window.AudioContext || window.webkitAudioContext;
-        audioCtx = new AudioContext();
-        masterGain = audioCtx.createGain();
-        masterGain.gain.value = 0.5;
-        masterGain.connect(audioCtx.destination);
-      }
-      if (audioCtx.state === 'suspended') {
-        audioCtx.resume();
-      }
-    }
-
-    function stopAmbientSound() {
-      if (currentNoiseNode) {
-        currentNoiseNode.stop();
-        currentNoiseNode.disconnect();
-        currentNoiseNode = null;
-      }
-      if (binauralOscLeft) {
-        binauralOscLeft.stop();
-        binauralOscRight.stop();
-        binauralOscLeft = null;
-        binauralOscRight = null;
-      }
-      activeSoundType = null;
-      updateAudioMenuUI();
-    }
-
-    function playAmbientSound(type) {
-      initAudio();
-      stopAmbientSound();
-
-      activeSoundType = type;
-      const bufferSize = audioCtx.sampleRate * 2;
-      const buffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
-      const data = buffer.getChannelData(0);
-
-      if (type === 'white') {
-        for (let i = 0; i < bufferSize; i++) {
-          data[i] = Math.random() * 2 - 1;
-        }
-        const whiteNoise = audioCtx.createBufferSource();
-        whiteNoise.buffer = buffer;
-        whiteNoise.loop = true;
-        whiteNoise.connect(masterGain);
-        whiteNoise.start();
-        currentNoiseNode = whiteNoise;
-      } 
-      else if (type === 'pink') {
-        let b0 = 0, b1 = 0, b2 = 0, b3 = 0, b4 = 0, b5 = 0, b6 = 0;
-        for (let i = 0; i < bufferSize; i++) {
-          let white = Math.random() * 2 - 1;
-          b0 = 0.99886 * b0 + white * 0.0555179;
-          b1 = 0.99332 * b1 + white * 0.0750759;
-          b2 = 0.96900 * b2 + white * 0.1538520;
-          b3 = 0.86650 * b3 + white * 0.3104856;
-          b4 = 0.55000 * b4 + white * 0.5329522;
-          b5 = -0.7616 * b5 - white * 0.0168980;
-          data[i] = b0 + b1 + b2 + b3 + b4 + b5 + b6 + white * 0.5362;
-          data[i] *= 0.11;
-          b6 = white * 0.115926;
-        }
-        const pinkNoise = audioCtx.createBufferSource();
-        pinkNoise.buffer = buffer;
-        pinkNoise.loop = true;
-        pinkNoise.connect(masterGain);
-        pinkNoise.start();
-        currentNoiseNode = pinkNoise;
-      }
-      else if (type === 'brown') {
-        let lastOut = 0.0;
-        for (let i = 0; i < bufferSize; i++) {
-          let white = Math.random() * 2 - 1;
-          data[i] = (lastOut + (0.02 * white)) / 1.02;
-          lastOut = data[i];
-          data[i] *= 3.5;
-        }
-        const brownNoise = audioCtx.createBufferSource();
-        brownNoise.buffer = buffer;
-        brownNoise.loop = true;
-
-        // Add lowpass filter for deep rain/rumble feel
-        const filter = audioCtx.createBiquadFilter();
-        filter.type = 'lowpass';
-        filter.frequency.value = 400;
-
-        brownNoise.connect(filter);
-        filter.connect(masterGain);
-        brownNoise.start();
-        currentNoiseNode = brownNoise;
-      }
-      else if (type === 'binaural') {
-        // Binaural Theta Beats: Base 200Hz, Left 200Hz, Right 206Hz (6Hz difference)
-        const merger = audioCtx.createChannelMerger(2);
-
-        binauralOscLeft = audioCtx.createOscillator();
-        binauralOscRight = audioCtx.createOscillator();
-
-        binauralOscLeft.frequency.value = 200;
-        binauralOscRight.frequency.value = 206;
-
-        binauralOscLeft.connect(merger, 0, 0); // Left channel
-        binauralOscRight.connect(merger, 0, 1); // Right channel
-
-        merger.connect(masterGain);
-
-        binauralOscLeft.start();
-        binauralOscRight.start();
-      }
-
-      updateAudioMenuUI();
-    }
-
-    function setAudioVolume(val) {
-      if (masterGain) {
-        masterGain.gain.value = val / 100;
-      }
-      document.getElementById('vol-value-txt').innerText = `${val}%`;
-    }
-
-    function toggleAudioMenu() {
-      const menu = document.getElementById('audio-menu');
-      menu.classList.toggle('hidden');
-    }
-
-    function updateAudioMenuUI() {
-      ['brown', 'pink', 'white', 'binaural'].forEach(type => {
-        const btn = document.getElementById(`sound-${type}`);
-        const icon = btn.querySelector('svg');
-        if (type === activeSoundType) {
-          btn.classList.add('bg-neutral-800');
-          icon.classList.remove('hidden');
+    // --- SISTEMA WAKE LOCK & PREVENCIÓN DE APAGADO DE PANTALLA ---
+    async function requestWakeLock() {
+      try {
+        if ('wakeLock' in navigator) {
+          state.wakeLock = await navigator.wakeLock.request('screen');
+          document.getElementById('wakeLockDot').className = 'w-2 h-2 rounded-full bg-emerald-400 animate-pulse';
+          document.getElementById('wakeLockStatusText').textContent = 'AOD Activo';
         } else {
-          btn.classList.remove('bg-neutral-800');
-          icon.classList.add('hidden');
+          // Fallback en vídeo en bucle
+          const video = document.getElementById('keepAwakeVideo');
+          video.play().catch(() => {});
         }
-      });
-
-      const audioBtnLabel = document.getElementById('audio-label');
-      const audioIcon = document.getElementById('audio-icon');
-      if (activeSoundType) {
-        audioBtnLabel.innerText = "Reproduciendo";
-        audioIcon.classList.add('text-amber-400');
-      } else {
-        audioBtnLabel.innerText = "Sonido";
-        audioIcon.classList.remove('text-amber-400');
+      } catch (err) {
+        console.warn('Wake Lock error:', err);
       }
     }
+    requestWakeLock();
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'visible') requestWakeLock();
+    });
 
-    function playNotificationBeep() {
-      initAudio();
-      const osc = audioCtx.createOscillator();
-      const gain = audioCtx.createGain();
-      osc.type = 'sine';
-      osc.frequency.setValueAtTime(587.33, audioCtx.currentTime); // D5
-      gain.gain.setValueAtTime(0.2, audioCtx.currentTime);
-      gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.8);
-      osc.connect(gain);
-      gain.connect(audioCtx.destination);
-      osc.start();
-      osc.stop(audioCtx.currentTime + 0.8);
+    // --- CUIDADO ANTI-QUEMADO OLED (SHIFTING) ---
+    function applyBurnInShift() {
+      const wrapper = document.getElementById('burnInWrapper');
+      const offsetX = (Math.random() - 0.5) * 30;
+      const offsetY = (Math.random() - 0.5) * 30;
+      wrapper.style.transform = `translate(${offsetX}px, ${offsetY}px)`;
     }
+    setInterval(applyBurnInShift, 60000);
 
-    // --- BREATHING EXERCISE OVERLAY ---
-    function toggleBreathing() {
-      const overlay = document.getElementById('breathing-overlay');
-      const isHidden = overlay.classList.contains('hidden');
-      if (isHidden) {
-        overlay.classList.remove('hidden');
-        document.getElementById('btn-breathe').classList.add('bg-neutral-800', 'text-amber-400');
-      } else {
-        overlay.classList.add('hidden');
-        document.getElementById('btn-breathe').classList.remove('bg-neutral-800', 'text-amber-400');
+    // --- MODO OBSCURIDAD / DIMMING SLIDER ---
+    document.getElementById('dimmerSlider').addEventListener('input', (e) => {
+      document.getElementById('dimmerOverlay').style.opacity = e.target.value;
+    });
+
+    // --- MODALES & VENTANAS ---
+    document.getElementById('subjectSelect').addEventListener('change', (e) => {
+      state.activeSubjectId = e.target.value;
+      saveSubjects();
+    });
+
+    document.getElementById('openSubjectsModalBtn').addEventListener('click', () => {
+      renderManageSubjectsList();
+      const modal = document.getElementById('subjectsModal');
+      modal.classList.remove('pointer-events-none');
+      modal.classList.remove('opacity-0');
+    });
+    document.getElementById('closeSubjectsModalBtn').addEventListener('click', () => {
+      const modal = document.getElementById('subjectsModal');
+      modal.classList.add('pointer-events-none');
+      modal.classList.add('opacity-0');
+    });
+
+    document.getElementById('newSubjectForm').addEventListener('submit', (e) => {
+      e.preventDefault();
+      const name = document.getElementById('newSubjectName').value.trim();
+      const goal = parseInt(document.getElementById('newSubjectGoal').value) || 10;
+      const color = document.getElementById('newSubjectColor').value;
+      if (!name) return;
+
+      const newSubj = {
+        id: 'subj_' + Date.now(),
+        name,
+        color,
+        targetHours: goal
+      };
+
+      state.subjects.push(newSubj);
+      state.activeSubjectId = newSubj.id;
+      saveSubjects();
+      renderManageSubjectsList();
+      document.getElementById('newSubjectName').value = '';
+    });
+
+    document.getElementById('statsOpenBtn').addEventListener('click', () => {
+      renderSubjectsGoalList();
+      updateRankUI();
+      const modal = document.getElementById('statsModal');
+      modal.classList.remove('pointer-events-none');
+      modal.classList.remove('opacity-0');
+    });
+    document.getElementById('closeStatsBtn').addEventListener('click', () => {
+      const modal = document.getElementById('statsModal');
+      modal.classList.add('pointer-events-none');
+      modal.classList.add('opacity-0');
+    });
+
+    // --- PANEL DE SONIDOS & YOUTUBE ---
+    document.getElementById('toggleSoundPanelBtn').addEventListener('click', () => {
+      document.getElementById('soundPanel').classList.toggle('hidden');
+    });
+
+    document.getElementById('loadYtBtn').addEventListener('click', () => {
+      const val = document.getElementById('ytUrlInput').value.trim();
+      let videoId = '';
+      if (val.includes('v=')) {
+        videoId = val.split('v=')[1].split('&')[0];
+      } else if (val.includes('youtu.be/')) {
+        videoId = val.split('youtu.be/')[1].split('?')[0];
       }
-    }
-
-    // --- THEME & ACCENT COLOR SWITCHER ---
-    function setTheme(theme) {
-      activeTheme = theme;
-      const hoursEl = document.getElementById('clock-hours');
-      const minutesEl = document.getElementById('clock-minutes');
-      const breatheCircle = document.getElementById('breathe-circle');
-
-      // Update active tab color
-      setMode(currentMode);
-
-      if (theme === 'amber') {
-        hoursEl.style.color = '#f59e0b';
-        minutesEl.style.color = '#fef3c7';
-      } else if (theme === 'emerald') {
-        hoursEl.style.color = '#10b981';
-        minutesEl.style.color = '#d1fae5';
-      } else if (theme === 'cyan') {
-        hoursEl.style.color = '#06b6d4';
-        minutesEl.style.color = '#cffaff';
-      } else if (theme === 'indigo') {
-        hoursEl.style.color = '#6366f1';
-        minutesEl.style.color = '#e0e7ff';
-      } else if (theme === 'monochrome') {
-        hoursEl.style.color = '#f8fafc';
-        minutesEl.style.color = '#94a3b8';
+      if (videoId) {
+        document.getElementById('ytPlayerIframe').src = `https://www.youtube.com/embed/${videoId}?autoplay=1`;
       }
-    }
+    });
 
-    function getAccentTextColor() {
-      switch (activeTheme) {
-        case 'amber': return 'text-amber-400';
-        case 'emerald': return 'text-emerald-400';
-        case 'cyan': return 'text-cyan-400';
-        case 'indigo': return 'text-indigo-400';
-        default: return 'text-neutral-200';
-      }
-    }
+    // TAB PANEL SONIDO
+    const tabAmbientBtn = document.getElementById('tabAmbientBtn');
+    const tabYouTubeBtn = document.getElementById('tabYouTubeBtn');
+    const tabMediaSessionBtn = document.getElementById('tabMediaSessionBtn');
 
-    // --- BRIGHTNESS DIMMER ---
-    function adjustBrightness(val) {
-      const overlay = document.getElementById('dimmer-overlay');
-      overlay.style.opacity = val / 100;
-    }
+    tabAmbientBtn.addEventListener('click', () => {
+      document.getElementById('contentAmbient').classList.remove('hidden');
+      document.getElementById('contentYouTube').classList.add('hidden');
+      document.getElementById('contentMediaSession').classList.add('hidden');
+      tabAmbientBtn.className = 'flex-1 py-2 text-center text-indigo-400 border-b-2 border-indigo-500';
+      tabYouTubeBtn.className = 'flex-1 py-2 text-center text-slate-400 hover:text-slate-200';
+      tabMediaSessionBtn.className = 'flex-1 py-2 text-center text-slate-400 hover:text-slate-200';
+    });
 
-    // --- OLED BURN-IN PROTECTION (Ambient Shift) ---
-    function setupBurnInProtection() {
-      setInterval(() => {
-        if (!burnInEnabled) return;
-        const wrapper = document.getElementById('aod-content-wrapper');
-        // Random slight displacement between -15px and 15px
-        const randomX = Math.floor(Math.random() * 30) - 15;
-        const randomY = Math.floor(Math.random() * 30) - 15;
-        wrapper.style.transform = `translate(${randomX}px, ${randomY}px)`;
-      }, 120000); // Shift every 2 minutes
-    }
+    tabYouTubeBtn.addEventListener('click', () => {
+      document.getElementById('contentAmbient').classList.add('hidden');
+      document.getElementById('contentYouTube').classList.remove('hidden');
+      document.getElementById('contentMediaSession').classList.add('hidden');
+      tabYouTubeBtn.className = 'flex-1 py-2 text-center text-indigo-400 border-b-2 border-indigo-500';
+      tabAmbientBtn.className = 'flex-1 py-2 text-center text-slate-400 hover:text-slate-200';
+      tabMediaSessionBtn.className = 'flex-1 py-2 text-center text-slate-400 hover:text-slate-200';
+    });
 
-    // --- AUTO-HIDE UI ON INACTIVITY ---
-    function setupActivityListeners() {
-      ['mousemove', 'mousedown', 'keydown', 'touchstart'].forEach(evt => {
-        window.addEventListener(evt, resetHideUiTimer);
-      });
-    }
+    tabMediaSessionBtn.addEventListener('click', () => {
+      document.getElementById('contentAmbient').classList.add('hidden');
+      document.getElementById('contentYouTube').classList.add('hidden');
+      document.getElementById('contentMediaSession').classList.remove('hidden');
+      tabMediaSessionBtn.className = 'flex-1 py-2 text-center text-indigo-400 border-b-2 border-indigo-500';
+      tabAmbientBtn.className = 'flex-1 py-2 text-center text-slate-400 hover:text-slate-200';
+      tabYouTubeBtn.className = 'flex-1 py-2 text-center text-slate-400 hover:text-slate-200';
+    });
 
-    function resetHideUiTimer() {
-      const elements = document.querySelectorAll('.fade-ui');
-      elements.forEach(el => el.style.opacity = '1');
-
-      clearTimeout(hideUiTimeout);
-      hideUiTimeout = setTimeout(() => {
-        elements.forEach(el => el.style.opacity = '0');
-        // Close audio menu if open when fading out
-        document.getElementById('audio-menu').classList.add('hidden');
-      }, 4000);
-    }
-
-    // --- FULLSCREEN ---
-    function toggleFullscreen() {
-      if (!document.fullscreenElement) {
-        document.documentElement.requestFullscreen().catch(err => {});
-      } else {
-        if (document.exitFullscreen) {
-          document.exitFullscreen();
-        }
-      }
-    }
-
-    // --- SETTINGS MODAL & PREFERENCES ---
-    function toggleSettingsModal() {
-      const modal = document.getElementById('settings-modal');
-      modal.classList.toggle('hidden');
-    }
-
-    function toggleSecondsDisplay(enabled) {
-      showSeconds = enabled;
-      document.getElementById('clock-seconds-wrapper').style.display = enabled ? 'inline' : 'none';
-    }
-
-    function toggle24HFormat(enabled) {
-      is24Hour = enabled;
-      updateClock();
-    }
-
-    function toggleBurnInProtection(enabled) {
-      burnInEnabled = enabled;
-      if (!enabled) {
-        document.getElementById('aod-content-wrapper').style.transform = 'translate(0px, 0px)';
-      }
-    }
-
-    function saveSettings() {
-      const workInput = parseInt(document.getElementById('input-pomo-work').value) || 25;
-      const restInput = parseInt(document.getElementById('input-pomo-rest').value) || 5;
-
-      pomoWorkTime = workInput * 60;
-      pomoRestTime = restInput * 60;
-
-      if (!isPomoRunning) {
-        pomoTimeLeft = isPomoBreak ? pomoRestTime : pomoWorkTime;
-        renderPomoDisplay();
-      }
-
-      toggleSettingsModal();
-    }
-
-    function editQuote() {
-      const newQuote = prompt("Escribe tu objetivo o frase de enfoque:", document.getElementById('focus-quote').innerText.replace(/"/g, ''));
-      if (newQuote !== null && newQuote.trim() !== '') {
-        document.getElementById('focus-quote').innerText = `"${newQuote.trim()}"`;
-      }
-    }
+    // INITIALIZATION
+    saveSubjects();
+    renderTimer();
   </script>
 </body>
 </html>
