@@ -1,0 +1,894 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AOD Ambient Focus Clock</title>
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Google Fonts: Inter & JetBrains Mono -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=JetBrains+Mono:wght@200;300;400;500&display=swap" rel="stylesheet">
+  <!-- Lucide Icons -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <style>
+    body {
+      font-family: 'Inter', sans-serif;
+      background-color: #000000;
+      color: #e2e8f0;
+      overflow: hidden;
+      user-select: none;
+      -webkit-user-select: none;
+    }
+    .font-mono-num {
+      font-family: 'JetBrains Mono', monospace;
+      font-variant-numeric: tabular-nums;
+    }
+    /* Smooth transitions for fade effect */
+    .fade-ui {
+      transition: opacity 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+    /* Shift animation container for OLED Burn-In protection */
+    #aod-content-wrapper {
+      transition: transform 3s ease-in-out;
+    }
+    /* Breathing animation circle */
+    @keyframes pulse-expand {
+      0% { transform: scale(0.85); opacity: 0.3; }
+      50% { transform: scale(1.4); opacity: 0.85; }
+      100% { transform: scale(0.85); opacity: 0.3; }
+    }
+    .animate-breathe {
+      animation: pulse-expand 8s ease-in-out infinite;
+    }
+    /* Pulsing colon */
+    @keyframes soft-pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.25; }
+    }
+    .colon-pulse {
+      animation: soft-pulse 2s infinite ease-in-out;
+    }
+    /* Custom scrollbar for settings if needed */
+    ::-webkit-scrollbar {
+      width: 4px;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: #334155;
+      border-radius: 4px;
+    }
+  </style>
+</head>
+<body class="h-screen w-screen relative bg-black flex flex-col justify-between items-center overflow-hidden">
+
+  <!-- Dimming Overlay (Controlled by brightness slider) -->
+  <div id="dimmer-overlay" class="pointer-events-none absolute inset-0 bg-black z-40 transition-opacity duration-300" style="opacity: 0;"></div>
+
+  <!-- MAIN AOD CONTAINER (Shifted slightly periodically for burn-in protection) -->
+  <main id="aod-content-wrapper" class="w-full h-full flex flex-col items-center justify-center relative z-10 px-4">
+    
+    <!-- Mode Selector Tabs (Clock / Pomodoro / Stopwatch) -->
+    <div id="mode-selector" class="fade-ui flex items-center space-x-2 bg-neutral-900/60 backdrop-blur-md px-3 py-1.5 rounded-full border border-neutral-800/80 mb-6 sm:mb-10 text-xs font-medium tracking-wide text-neutral-400">
+      <button onclick="setMode('clock')" id="tab-clock" class="px-3 py-1 rounded-full transition-all duration-300 text-amber-400 bg-neutral-800/80">Reloj</button>
+      <button onclick="setMode('pomodoro')" id="tab-pomodoro" class="px-3 py-1 rounded-full transition-all duration-300 hover:text-neutral-200">Pomodoro</button>
+      <button onclick="setMode('stopwatch')" id="tab-stopwatch" class="px-3 py-1 rounded-full transition-all duration-300 hover:text-neutral-200">Cronómetro</button>
+    </div>
+
+    <!-- MAIN DISPLAY AREA -->
+    <div class="flex flex-col items-center justify-center text-center">
+
+      <!-- CLOCK DISPLAY -->
+      <div id="display-clock" class="flex flex-col items-center">
+        <div class="flex items-baseline font-mono-num font-extralight tracking-tight text-6xl sm:text-8xl md:text-9xl lg:text-[11rem] text-neutral-100 drop-shadow-sm select-none">
+          <span id="clock-hours">00</span>
+          <span class="colon-pulse mx-1 text-neutral-500 font-light">:</span>
+          <span id="clock-minutes">00</span>
+          <span id="clock-seconds-wrapper" class="text-2xl sm:text-4xl md:text-5xl text-neutral-500 font-light ml-2 sm:ml-4" style="display: inline;">
+            <span class="text-xs text-neutral-600 font-sans block sm:inline">:</span><span id="clock-seconds">00</span>
+          </span>
+        </div>
+        <div id="clock-date" class="mt-2 sm:mt-4 text-xs sm:text-base font-light tracking-widest text-neutral-400 uppercase">
+          Cargando fecha...
+        </div>
+      </div>
+
+      <!-- POMODORO DISPLAY -->
+      <div id="display-pomodoro" class="hidden flex-col items-center">
+        <div class="text-xs tracking-widest uppercase text-neutral-500 mb-2 font-medium" id="pomo-status-label">Sesión de Enfoque</div>
+        <div class="font-mono-num font-extralight tracking-tight text-6xl sm:text-8xl md:text-9xl lg:text-[10rem] text-neutral-100 select-none">
+          <span id="pomo-display font-mono-num">25:00</span>
+        </div>
+        <!-- Pomodoro Controls -->
+        <div class="fade-ui flex items-center space-x-4 mt-6">
+          <button onclick="togglePomodoro()" id="btn-pomo-start" class="w-12 h-12 sm:w-14 sm:h-14 rounded-full bg-neutral-800/90 border border-neutral-700 flex items-center justify-center text-neutral-200 hover:bg-neutral-700 transition">
+            <i data-lucide="play" class="w-5 h-5 sm:w-6 sm:h-6 fill-current"></i>
+          </button>
+          <button onclick="resetPomodoro()" class="w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-neutral-900/80 border border-neutral-800 flex items-center justify-center text-neutral-400 hover:text-neutral-200 hover:bg-neutral-800 transition">
+            <i data-lucide="rotate-ccw" class="w-4 h-4 sm:w-5 sm:h-5"></i>
+          </button>
+          <button onclick="skipPomodoroPhase()" class="w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-neutral-900/80 border border-neutral-800 flex items-center justify-center text-neutral-400 hover:text-neutral-200 hover:bg-neutral-800 transition">
+            <i data-lucide="skip-forward" class="w-4 h-4 sm:w-5 sm:h-5"></i>
+          </button>
+        </div>
+      </div>
+
+      <!-- STOPWATCH DISPLAY -->
+      <div id="display-stopwatch" class="hidden flex-col items-center">
+        <div class="text-xs tracking-widest uppercase text-neutral-500 mb-2 font-medium">Tiempo Transcurrido</div>
+        <div class="font-mono-num font-extralight tracking-tight text-6xl sm:text-8xl md:text-9xl lg:text-[10rem] text-neutral-100 select-none">
+          <span id="sw-display">00:00<span class="text-2xl sm:text-4xl text-neutral-500">.0</span></span>
+        </div>
+        <!-- Stopwatch Controls -->
+        <div class="fade-ui flex items-center space-x-4 mt-6">
+          <button onclick="toggleStopwatch()" id="btn-sw-start" class="w-12 h-12 sm:w-14 sm:h-14 rounded-full bg-neutral-800/90 border border-neutral-700 flex items-center justify-center text-neutral-200 hover:bg-neutral-700 transition">
+            <i data-lucide="play" class="w-5 h-5 sm:w-6 sm:h-6 fill-current"></i>
+          </button>
+          <button onclick="resetStopwatch()" class="w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-neutral-900/80 border border-neutral-800 flex items-center justify-center text-neutral-400 hover:text-neutral-200 hover:bg-neutral-800 transition">
+            <i data-lucide="rotate-ccw" class="w-4 h-4 sm:w-5 sm:h-5"></i>
+          </button>
+        </div>
+      </div>
+
+      <!-- FOCUS QUOTE / CUSTOM GOAL -->
+      <div class="mt-8 sm:mt-12 max-w-md px-4">
+        <p id="focus-quote" onclick="editQuote()" class="text-xs sm:text-sm font-light tracking-wider text-neutral-500 italic hover:text-neutral-300 transition cursor-pointer" title="Haz clic para cambiar tu objetivo">
+          "Haz de cada minuto una obra maestra."
+        </p>
+      </div>
+
+    </div>
+  </main>
+
+  <!-- BREATHING GUIDE OVERLAY CONTAINER (Toggled on demand) -->
+  <div id="breathing-overlay" class="hidden absolute inset-0 z-20 flex flex-col items-center justify-center pointer-events-none">
+    <div id="breathe-circle" class="w-48 h-48 sm:w-64 sm:h-64 rounded-full border border-amber-500/30 bg-amber-500/5 flex items-center justify-center animate-breathe backdrop-blur-[2px]">
+      <div class="w-32 h-32 sm:w-44 sm:h-44 rounded-full border border-amber-500/20 bg-amber-500/10 flex items-center justify-center">
+        <span id="breathe-text" class="text-xs sm:text-sm tracking-widest text-amber-200/80 uppercase font-light">Respira</span>
+      </div>
+    </div>
+    <span class="text-xs text-neutral-500 mt-8 tracking-widest uppercase">Guía de Respiración (4-7-8)</span>
+  </div>
+
+  <!-- BOTTOM CONTROL BAR (Fades out automatically) -->
+  <header id="control-bar" class="fade-ui fixed bottom-6 z-50 flex items-center justify-between w-11/12 max-w-3xl bg-neutral-900/70 backdrop-blur-md border border-neutral-800/80 rounded-2xl px-4 py-2.5 shadow-2xl transition-all duration-500">
+    
+    <!-- Left Tools: Sound & Breath -->
+    <div class="flex items-center space-x-1 sm:space-x-2">
+      <!-- Ambient Noise Button & Dropdown Trigger -->
+      <button onclick="toggleAudioMenu()" class="flex items-center space-x-1.5 px-3 py-1.5 rounded-xl text-xs font-medium text-neutral-300 hover:bg-neutral-800/80 transition" id="btn-audio-toggle">
+        <i data-lucide="volume-2" class="w-4 h-4 text-neutral-400" id="audio-icon"></i>
+        <span id="audio-label" class="hidden sm:inline">Sonido</span>
+      </button>
+
+      <!-- Breathing Guide Toggle -->
+      <button onclick="toggleBreathing()" id="btn-breathe" class="flex items-center space-x-1.5 px-3 py-1.5 rounded-xl text-xs font-medium text-neutral-300 hover:bg-neutral-800/80 transition">
+        <i data-lucide="wind" class="w-4 h-4 text-neutral-400"></i>
+        <span class="hidden sm:inline">Calma</span>
+      </button>
+    </div>
+      <!-- Right Controls: Settings, Brightness, Fullscreen -->
+      <div class="flex items-center space-x-1 sm:space-x-2">
+        <!-- Brightness Dimmer Control -->
+        <div class="relative group flex items-center">
+          <button class="p-2 rounded-xl text-neutral-400 hover:text-neutral-200 hover:bg-neutral-800/80 transition">
+            <i data-lucide="sun" class="w-4 h-4"></i>
+          </button>
+          <!-- Popup Slider -->
+          <div class="hidden group-hover:flex absolute bottom-full left-1/2 -translate-x-1/2 mb-2 p-3 bg-neutral-900 border border-neutral-800 rounded-xl shadow-xl flex-col items-center w-32">
+            <span class="text-[10px] text-neutral-400 mb-1">Brillo AOD</span>
+            <input type="range" id="brightness-slider" min="0" max="85" value="0" oninput="adjustBrightness(this.value)" class="w-full accent-amber-500 cursor-pointer">
+          </div>
+        </div>
+
+        <!-- Wake Lock Indicator Status -->
+        <button id="btn-wakelock-status" onclick="requestWakeLockToggle()" title="Estado Mantener Pantalla Encendida" class="p-2 rounded-xl text-amber-400 hover:bg-neutral-800/80 transition">
+          <i data-lucide="shield-check" class="w-4 h-4"></i>
+        </button>
+
+        <!-- Settings Drawer Trigger -->
+        <button onclick="toggleSettingsModal()" class="p-2 rounded-xl text-neutral-400 hover:text-neutral-200 hover:bg-neutral-800/80 transition">
+          <i data-lucide="sliders" class="w-4 h-4"></i>
+        </button>
+
+        <!-- Fullscreen Toggle -->
+        <button onclick="toggleFullscreen()" class="p-2 rounded-xl text-neutral-400 hover:text-neutral-200 hover:bg-neutral-800/80 transition">
+          <i data-lucide="maximize" class="w-4 h-4" id="fullscreen-icon"></i>
+        </button>
+      </div>
+    </header>
+
+    <!-- Invisible Fallback Video Element to Force Keeping Display Awake (YouTube trick) -->
+    <video id="wake-lock-video" loop muted playsinline style="display:none; width: 1px; height: 1px; opacity: 0.01;">
+      <source src="data:video/mp4;base64,AAAAIGZ0eXBpc29tAAACAGlzb21pc28yYXZjMW1wNDEAAAAIZnJlZQAAAAptZGF0AAAAAA==" type="video/mp4">
+    </video>
+
+  <!-- AUDIO SELECTION POPUP MENU -->
+  <div id="audio-menu" class="hidden fixed bottom-20 left-6 sm:left-12 z-50 bg-neutral-900/90 backdrop-blur-lg border border-neutral-800 rounded-2xl p-4 w-64 shadow-2xl">
+    <div class="text-xs font-semibold uppercase tracking-wider text-neutral-400 mb-3 flex justify-between items-center">
+      <span>Generador Ambiental</span>
+      <button onclick="toggleAudioMenu()" class="text-neutral-500 hover:text-neutral-300"><i data-lucide="x" class="w-3.5 h-3.5"></i></button>
+    </div>
+    
+    <div class="space-y-1.5 text-xs">
+      <button onclick="playAmbientSound('brown')" class="w-full text-left px-3 py-2 rounded-xl flex items-center justify-between text-neutral-300 hover:bg-neutral-800/80 transition sound-opt" id="sound-brown">
+        <span>Lluvia Profunda (Brown)</span>
+        <i data-lucide="check" class="w-3.5 h-3.5 text-amber-400 hidden"></i>
+      </button>
+      <button onclick="playAmbientSound('pink')" class="w-full text-left px-3 py-2 rounded-xl flex items-center justify-between text-neutral-300 hover:bg-neutral-800/80 transition sound-opt" id="sound-pink">
+        <span>Cascada Suave (Pink)</span>
+        <i data-lucide="check" class="w-3.5 h-3.5 text-amber-400 hidden"></i>
+      </button>
+      <button onclick="playAmbientSound('white')" class="w-full text-left px-3 py-2 rounded-xl flex items-center justify-between text-neutral-300 hover:bg-neutral-800/80 transition sound-opt" id="sound-white">
+        <span>Aire Constante (White)</span>
+        <i data-lucide="check" class="w-3.5 h-3.5 text-amber-400 hidden"></i>
+      </button>
+      <button onclick="playAmbientSound('binaural')" class="w-full text-left px-3 py-2 rounded-xl flex items-center justify-between text-neutral-300 hover:bg-neutral-800/80 transition sound-opt" id="sound-binaural">
+        <span>Ondas Theta Enfoque (6Hz)</span>
+        <i data-lucide="check" class="w-3.5 h-3.5 text-amber-400 hidden"></i>
+      </button>
+      <button onclick="stopAmbientSound()" class="w-full text-left px-3 py-2 rounded-xl flex items-center justify-between text-red-400/90 hover:bg-neutral-800/80 transition mt-2 border-t border-neutral-800/60 pt-2">
+        <span>Silenciar Audio</span>
+      </button>
+    </div>
+
+    <!-- Volume Slider -->
+    <div class="mt-4 pt-3 border-t border-neutral-800/60">
+      <div class="flex items-center justify-between text-[11px] text-neutral-400 mb-1">
+        <span>Volumen Ambient</span>
+        <span id="vol-value-txt">50%</span>
+      </div>
+      <input type="range" id="volume-slider" min="0" max="100" value="50" oninput="setAudioVolume(this.value)" class="w-full accent-amber-500 cursor-pointer">
+    </div>
+  </div>
+
+  <!-- SETTINGS MODAL -->
+  <div id="settings-modal" class="hidden fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-4">
+    <div class="bg-neutral-900 border border-neutral-800 rounded-3xl max-w-md w-full p-6 text-neutral-200 shadow-2xl relative">
+      <div class="flex items-center justify-between mb-6">
+        <h3 class="text-base font-medium text-neutral-100 flex items-center gap-2">
+          <i data-lucide="sliders" class="w-4 h-4 text-amber-400"></i> Ajustes de Visualización
+        </h3>
+        <button onclick="toggleSettingsModal()" class="text-neutral-400 hover:text-neutral-100">
+          <i data-lucide="x" class="w-5 h-5"></i>
+        </button>
+      </div>
+
+      <div class="space-y-5 text-xs sm:text-sm">
+        <!-- Show Seconds Toggle -->
+        <div class="flex items-center justify-between">
+          <span>Mostrar segundos en reloj</span>
+          <input type="checkbox" id="toggle-seconds" checked onchange="toggleSecondsDisplay(this.checked)" class="w-4 h-4 accent-amber-500 rounded cursor-pointer">
+        </div>
+
+        <!-- 24h format Toggle -->
+        <div class="flex items-center justify-between">
+          <span>Formato 24 Horas</span>
+          <input type="checkbox" id="toggle-24h" checked onchange="toggle24HFormat(this.checked)" class="w-4 h-4 accent-amber-500 rounded cursor-pointer">
+        </div>
+
+        <!-- OLED Burn-In Shift Toggle -->
+        <div class="flex items-center justify-between">
+          <div>
+            <div class="font-normal">Anti Burn-In (OLED)</div>
+            <div class="text-[11px] text-neutral-500">Mueve ligeramente el texto cada 2 min.</div>
+          </div>
+          <input type="checkbox" id="toggle-burnin" checked onchange="toggleBurnInProtection(this.checked)" class="w-4 h-4 accent-amber-500 rounded cursor-pointer">
+        </div>
+
+        <!-- Pomodoro Duration Setup -->
+        <div class="border-t border-neutral-800 pt-4">
+          <div class="font-normal mb-2 text-neutral-300">Tiempos Pomodoro (minutos)</div>
+          <div class="grid grid-cols-2 gap-3">
+            <div>
+              <label class="text-[11px] text-neutral-500 block mb-1">Enfoque</label>
+              <input type="number" id="input-pomo-work" value="25" min="1" max="120" class="w-full bg-neutral-800 border border-neutral-700 rounded-xl px-3 py-1.5 text-neutral-100 text-xs">
+            </div>
+            <div>
+              <label class="text-[11px] text-neutral-500 block mb-1">Descanso</label>
+              <input type="number" id="input-pomo-rest" value="5" min="1" max="60" class="w-full bg-neutral-800 border border-neutral-700 rounded-xl px-3 py-1.5 text-neutral-100 text-xs">
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="mt-6 flex justify-end">
+        <button onclick="saveSettings()" class="bg-amber-500 hover:bg-amber-600 text-black font-medium text-xs px-5 py-2 rounded-xl transition">
+          Guardar Cambios
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- JAVASCRIPT LOGIC -->
+  <script>
+    // --- APP STATE ---
+    let currentMode = 'clock'; // clock | pomodoro | stopwatch
+    let activeTheme = 'amber';
+    let is24Hour = true;
+    let showSeconds = true;
+    let burnInEnabled = true;
+
+    // Wake Lock State
+    let wakeLock = null;
+    let wakeLockEnabled = true;
+
+    // Pomodoro State
+    let pomoWorkTime = 25 * 60;
+    let pomoRestTime = 5 * 60;
+    let pomoTimeLeft = 25 * 60;
+    let isPomoRunning = false;
+    let isPomoBreak = false;
+    let pomoInterval = null;
+
+    // Stopwatch State
+    let swTime = 0;
+    let isSwRunning = false;
+    let swInterval = null;
+
+    // Web Audio API State
+    let audioCtx = null;
+    let currentNoiseNode = null;
+    let masterGain = null;
+    let activeSoundType = null;
+    let binauralOscLeft = null;
+    let binauralOscRight = null;
+
+    // Auto Hide UI Timer
+    let hideUiTimeout = null;
+
+    // --- INITIALIZATION ---
+    window.onload = () => {
+      lucide.createIcons();
+      updateClock();
+      setInterval(updateClock, 1000);
+      setupBurnInProtection();
+      setupActivityListeners();
+      resetHideUiTimer();
+      
+      // Auto-activate Screen Wake Lock
+      requestWakeLock();
+      
+      // Re-apply Wake Lock if visibility changes (e.g. user switches tabs and returns)
+      document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'visible' && wakeLockEnabled) {
+          requestWakeLock();
+        }
+      });
+    };
+
+    // --- SCREEN WAKE LOCK (Always On Display Engine) ---
+    async function requestWakeLock() {
+      if (!wakeLockEnabled) return;
+
+      // Method 1: Native Navigator Screen Wake Lock API
+      if ('wakeLock' in navigator) {
+        try {
+          wakeLock = await navigator.wakeLock.request('screen');
+          updateWakeLockUI(true);
+          
+          wakeLock.addEventListener('release', () => {
+            updateWakeLockUI(false);
+          });
+        } catch (err) {
+          console.warn(`Native WakeLock error (${err.name}, ${err.message}). Activating Video Fallback...`);
+          activateVideoWakeLockFallback();
+        }
+      } else {
+        // Method 2: Video Loop Fallback (YouTube-style keep awake for unsupported browsers)
+        activateVideoWakeLockFallback();
+      }
+    }
+
+    function activateVideoWakeLockFallback() {
+      const video = document.getElementById('wake-lock-video');
+      if (video) {
+        video.play().then(() => {
+          updateWakeLockUI(true);
+        }).catch(() => {
+          updateWakeLockUI(false);
+        });
+      }
+    }
+
+    function releaseWakeLock() {
+      if (wakeLock !== null) {
+        wakeLock.release().then(() => {
+          wakeLock = null;
+        });
+      }
+      const video = document.getElementById('wake-lock-video');
+      if (video) {
+        video.pause();
+      }
+      updateWakeLockUI(false);
+    }
+
+    function requestWakeLockToggle() {
+      wakeLockEnabled = !wakeLockEnabled;
+      if (wakeLockEnabled) {
+        requestWakeLock();
+      } else {
+        releaseWakeLock();
+      }
+    }
+
+    function updateWakeLockUI(active) {
+      const btn = document.getElementById('btn-wakelock-status');
+      if (!btn) return;
+      if (active) {
+        btn.className = "p-2 rounded-xl text-amber-400 hover:bg-neutral-800/80 transition";
+        btn.title = "Pantalla Always-On Activa (No se apagará)";
+      } else {
+        btn.className = "p-2 rounded-xl text-neutral-600 hover:bg-neutral-800/80 transition";
+        btn.title = "Pantalla Always-On Inactiva";
+      }
+    }
+
+    // --- FULLSCREEN ---
+    function toggleFullscreen() {
+      if (!document.fullscreenElement) {
+        document.documentElement.requestFullscreen().then(() => {
+          requestWakeLock(); // Re-ensure wake lock on fullscreen mode
+        }).catch(err => {});
+      } else {
+        if (document.exitFullscreen) {
+          document.exitFullscreen();
+        }
+      }
+    }
+
+    // --- CLOCK LOGIC ---
+    function updateClock() {
+      const now = new Date();
+      let hours = now.getHours();
+      const minutes = String(now.getMinutes()).padStart(2, '0');
+      const seconds = String(now.getSeconds()).padStart(2, '0');
+
+      if (!is24Hour) {
+        hours = hours % 12 || 12;
+      }
+      hours = String(hours).padStart(2, '0');
+
+      document.getElementById('clock-hours').innerText = hours;
+      document.getElementById('clock-minutes').innerText = minutes;
+      document.getElementById('clock-seconds').innerText = seconds;
+
+      // Date string format
+      const options = { weekday: 'long', month: 'long', day: 'numeric' };
+      const dateStr = now.toLocaleDateString('es-ES', options);
+      document.getElementById('clock-date').innerText = dateStr;
+    }
+
+    // --- MODE SWITCHING ---
+    function setMode(mode) {
+      currentMode = mode;
+      document.getElementById('display-clock').classList.add('hidden');
+      document.getElementById('display-pomodoro').classList.add('hidden');
+      document.getElementById('display-stopwatch').classList.add('hidden');
+
+      // Reset tab styling
+      ['clock', 'pomodoro', 'stopwatch'].forEach(m => {
+        const btn = document.getElementById(`tab-${m}`);
+        btn.className = "px-3 py-1 rounded-full transition-all duration-300 hover:text-neutral-200 text-neutral-400";
+      });
+
+      const activeBtn = document.getElementById(`tab-${mode}`);
+      activeBtn.className = `px-3 py-1 rounded-full transition-all duration-300 bg-neutral-800/80 ${getAccentTextColor()}`;
+
+      if (mode === 'clock') {
+        document.getElementById('display-clock').classList.remove('hidden');
+        document.getElementById('display-clock').classList.add('flex');
+      } else if (mode === 'pomodoro') {
+        document.getElementById('display-pomodoro').classList.remove('hidden');
+        document.getElementById('display-pomodoro').classList.add('flex');
+      } else if (mode === 'stopwatch') {
+        document.getElementById('display-stopwatch').classList.remove('hidden');
+        document.getElementById('display-stopwatch').classList.add('flex');
+      }
+    }
+
+    // --- POMODORO TIMER ---
+    function togglePomodoro() {
+      if (isPomoRunning) {
+        clearInterval(pomoInterval);
+        isPomoRunning = false;
+        updatePomoPlayBtn(false);
+      } else {
+        isPomoRunning = true;
+        updatePomoPlayBtn(true);
+        pomoInterval = setInterval(() => {
+          if (pomoTimeLeft > 0) {
+            pomoTimeLeft--;
+            renderPomoDisplay();
+          } else {
+            // Switch session
+            isPomoBreak = !isPomoBreak;
+            pomoTimeLeft = isPomoBreak ? pomoRestTime : pomoWorkTime;
+            document.getElementById('pomo-status-label').innerText = isPomoBreak ? 'Tiempo de Descanso' : 'Sesión de Enfoque';
+            playNotificationBeep();
+            renderPomoDisplay();
+          }
+        }, 1000);
+      }
+    }
+
+    function resetPomodoro() {
+      clearInterval(pomoInterval);
+      isPomoRunning = false;
+      isPomoBreak = false;
+      pomoTimeLeft = pomoWorkTime;
+      document.getElementById('pomo-status-label').innerText = 'Sesión de Enfoque';
+      updatePomoPlayBtn(false);
+      renderPomoDisplay();
+    }
+
+    function skipPomodoroPhase() {
+      isPomoBreak = !isPomoBreak;
+      pomoTimeLeft = isPomoBreak ? pomoRestTime : pomoWorkTime;
+      document.getElementById('pomo-status-label').innerText = isPomoBreak ? 'Tiempo de Descanso' : 'Sesión de Enfoque';
+      renderPomoDisplay();
+    }
+
+    function renderPomoDisplay() {
+      const mins = String(Math.floor(pomoTimeLeft / 60)).padStart(2, '0');
+      const secs = String(pomoTimeLeft % 60).padStart(2, '0');
+      document.getElementById('pomo-display font-mono-num').innerText = `${mins}:${secs}`;
+    }
+
+    function updatePomoPlayBtn(running) {
+      const btn = document.getElementById('btn-pomo-start');
+      btn.innerHTML = running ? `<i data-lucide="pause" class="w-5 h-5 sm:w-6 sm:h-6 fill-current"></i>` : `<i data-lucide="play" class="w-5 h-5 sm:w-6 sm:h-6 fill-current"></i>`;
+      lucide.createIcons();
+    }
+
+    // --- STOPWATCH ---
+    function toggleStopwatch() {
+      if (isSwRunning) {
+        clearInterval(swInterval);
+        isSwRunning = false;
+        updateSwPlayBtn(false);
+      } else {
+        isSwRunning = true;
+        updateSwPlayBtn(true);
+        const startTime = Date.now() - swTime;
+        swInterval = setInterval(() => {
+          swTime = Date.now() - startTime;
+          renderSwDisplay();
+        }, 100);
+      }
+    }
+
+    function resetStopwatch() {
+      clearInterval(swInterval);
+      isSwRunning = false;
+      swTime = 0;
+      updateSwPlayBtn(false);
+      renderSwDisplay();
+    }
+
+    function renderSwDisplay() {
+      const totalSeconds = Math.floor(swTime / 1000);
+      const mins = String(Math.floor(totalSeconds / 60)).padStart(2, '0');
+      const secs = String(totalSeconds % 60).padStart(2, '0');
+      const tenths = Math.floor((swTime % 1000) / 100);
+      document.getElementById('sw-display').innerHTML = `${mins}:${secs}<span class="text-2xl sm:text-4xl text-neutral-500">.${tenths}</span>`;
+    }
+
+    function updateSwPlayBtn(running) {
+      const btn = document.getElementById('btn-sw-start');
+      btn.innerHTML = running ? `<i data-lucide="pause" class="w-5 h-5 sm:w-6 sm:h-6 fill-current"></i>` : `<i data-lucide="play" class="w-5 h-5 sm:w-6 sm:h-6 fill-current"></i>`;
+      lucide.createIcons();
+    }
+
+    // --- WEB AUDIO API AMBIENT SOUND GENERATOR ---
+    function initAudio() {
+      if (!audioCtx) {
+        const AudioContext = window.AudioContext || window.webkitAudioContext;
+        audioCtx = new AudioContext();
+        masterGain = audioCtx.createGain();
+        masterGain.gain.value = 0.5;
+        masterGain.connect(audioCtx.destination);
+      }
+      if (audioCtx.state === 'suspended') {
+        audioCtx.resume();
+      }
+    }
+
+    function stopAmbientSound() {
+      if (currentNoiseNode) {
+        currentNoiseNode.stop();
+        currentNoiseNode.disconnect();
+        currentNoiseNode = null;
+      }
+      if (binauralOscLeft) {
+        binauralOscLeft.stop();
+        binauralOscRight.stop();
+        binauralOscLeft = null;
+        binauralOscRight = null;
+      }
+      activeSoundType = null;
+      updateAudioMenuUI();
+    }
+
+    function playAmbientSound(type) {
+      initAudio();
+      stopAmbientSound();
+
+      activeSoundType = type;
+      const bufferSize = audioCtx.sampleRate * 2;
+      const buffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
+      const data = buffer.getChannelData(0);
+
+      if (type === 'white') {
+        for (let i = 0; i < bufferSize; i++) {
+          data[i] = Math.random() * 2 - 1;
+        }
+        const whiteNoise = audioCtx.createBufferSource();
+        whiteNoise.buffer = buffer;
+        whiteNoise.loop = true;
+        whiteNoise.connect(masterGain);
+        whiteNoise.start();
+        currentNoiseNode = whiteNoise;
+      } 
+      else if (type === 'pink') {
+        let b0 = 0, b1 = 0, b2 = 0, b3 = 0, b4 = 0, b5 = 0, b6 = 0;
+        for (let i = 0; i < bufferSize; i++) {
+          let white = Math.random() * 2 - 1;
+          b0 = 0.99886 * b0 + white * 0.0555179;
+          b1 = 0.99332 * b1 + white * 0.0750759;
+          b2 = 0.96900 * b2 + white * 0.1538520;
+          b3 = 0.86650 * b3 + white * 0.3104856;
+          b4 = 0.55000 * b4 + white * 0.5329522;
+          b5 = -0.7616 * b5 - white * 0.0168980;
+          data[i] = b0 + b1 + b2 + b3 + b4 + b5 + b6 + white * 0.5362;
+          data[i] *= 0.11;
+          b6 = white * 0.115926;
+        }
+        const pinkNoise = audioCtx.createBufferSource();
+        pinkNoise.buffer = buffer;
+        pinkNoise.loop = true;
+        pinkNoise.connect(masterGain);
+        pinkNoise.start();
+        currentNoiseNode = pinkNoise;
+      }
+      else if (type === 'brown') {
+        let lastOut = 0.0;
+        for (let i = 0; i < bufferSize; i++) {
+          let white = Math.random() * 2 - 1;
+          data[i] = (lastOut + (0.02 * white)) / 1.02;
+          lastOut = data[i];
+          data[i] *= 3.5;
+        }
+        const brownNoise = audioCtx.createBufferSource();
+        brownNoise.buffer = buffer;
+        brownNoise.loop = true;
+
+        // Add lowpass filter for deep rain/rumble feel
+        const filter = audioCtx.createBiquadFilter();
+        filter.type = 'lowpass';
+        filter.frequency.value = 400;
+
+        brownNoise.connect(filter);
+        filter.connect(masterGain);
+        brownNoise.start();
+        currentNoiseNode = brownNoise;
+      }
+      else if (type === 'binaural') {
+        // Binaural Theta Beats: Base 200Hz, Left 200Hz, Right 206Hz (6Hz difference)
+        const merger = audioCtx.createChannelMerger(2);
+
+        binauralOscLeft = audioCtx.createOscillator();
+        binauralOscRight = audioCtx.createOscillator();
+
+        binauralOscLeft.frequency.value = 200;
+        binauralOscRight.frequency.value = 206;
+
+        binauralOscLeft.connect(merger, 0, 0); // Left channel
+        binauralOscRight.connect(merger, 0, 1); // Right channel
+
+        merger.connect(masterGain);
+
+        binauralOscLeft.start();
+        binauralOscRight.start();
+      }
+
+      updateAudioMenuUI();
+    }
+
+    function setAudioVolume(val) {
+      if (masterGain) {
+        masterGain.gain.value = val / 100;
+      }
+      document.getElementById('vol-value-txt').innerText = `${val}%`;
+    }
+
+    function toggleAudioMenu() {
+      const menu = document.getElementById('audio-menu');
+      menu.classList.toggle('hidden');
+    }
+
+    function updateAudioMenuUI() {
+      ['brown', 'pink', 'white', 'binaural'].forEach(type => {
+        const btn = document.getElementById(`sound-${type}`);
+        const icon = btn.querySelector('svg');
+        if (type === activeSoundType) {
+          btn.classList.add('bg-neutral-800');
+          icon.classList.remove('hidden');
+        } else {
+          btn.classList.remove('bg-neutral-800');
+          icon.classList.add('hidden');
+        }
+      });
+
+      const audioBtnLabel = document.getElementById('audio-label');
+      const audioIcon = document.getElementById('audio-icon');
+      if (activeSoundType) {
+        audioBtnLabel.innerText = "Reproduciendo";
+        audioIcon.classList.add('text-amber-400');
+      } else {
+        audioBtnLabel.innerText = "Sonido";
+        audioIcon.classList.remove('text-amber-400');
+      }
+    }
+
+    function playNotificationBeep() {
+      initAudio();
+      const osc = audioCtx.createOscillator();
+      const gain = audioCtx.createGain();
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(587.33, audioCtx.currentTime); // D5
+      gain.gain.setValueAtTime(0.2, audioCtx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.8);
+      osc.connect(gain);
+      gain.connect(audioCtx.destination);
+      osc.start();
+      osc.stop(audioCtx.currentTime + 0.8);
+    }
+
+    // --- BREATHING EXERCISE OVERLAY ---
+    function toggleBreathing() {
+      const overlay = document.getElementById('breathing-overlay');
+      const isHidden = overlay.classList.contains('hidden');
+      if (isHidden) {
+        overlay.classList.remove('hidden');
+        document.getElementById('btn-breathe').classList.add('bg-neutral-800', 'text-amber-400');
+      } else {
+        overlay.classList.add('hidden');
+        document.getElementById('btn-breathe').classList.remove('bg-neutral-800', 'text-amber-400');
+      }
+    }
+
+    // --- THEME & ACCENT COLOR SWITCHER ---
+    function setTheme(theme) {
+      activeTheme = theme;
+      const hoursEl = document.getElementById('clock-hours');
+      const minutesEl = document.getElementById('clock-minutes');
+      const breatheCircle = document.getElementById('breathe-circle');
+
+      // Update active tab color
+      setMode(currentMode);
+
+      if (theme === 'amber') {
+        hoursEl.style.color = '#f59e0b';
+        minutesEl.style.color = '#fef3c7';
+      } else if (theme === 'emerald') {
+        hoursEl.style.color = '#10b981';
+        minutesEl.style.color = '#d1fae5';
+      } else if (theme === 'cyan') {
+        hoursEl.style.color = '#06b6d4';
+        minutesEl.style.color = '#cffaff';
+      } else if (theme === 'indigo') {
+        hoursEl.style.color = '#6366f1';
+        minutesEl.style.color = '#e0e7ff';
+      } else if (theme === 'monochrome') {
+        hoursEl.style.color = '#f8fafc';
+        minutesEl.style.color = '#94a3b8';
+      }
+    }
+
+    function getAccentTextColor() {
+      switch (activeTheme) {
+        case 'amber': return 'text-amber-400';
+        case 'emerald': return 'text-emerald-400';
+        case 'cyan': return 'text-cyan-400';
+        case 'indigo': return 'text-indigo-400';
+        default: return 'text-neutral-200';
+      }
+    }
+
+    // --- BRIGHTNESS DIMMER ---
+    function adjustBrightness(val) {
+      const overlay = document.getElementById('dimmer-overlay');
+      overlay.style.opacity = val / 100;
+    }
+
+    // --- OLED BURN-IN PROTECTION (Ambient Shift) ---
+    function setupBurnInProtection() {
+      setInterval(() => {
+        if (!burnInEnabled) return;
+        const wrapper = document.getElementById('aod-content-wrapper');
+        // Random slight displacement between -15px and 15px
+        const randomX = Math.floor(Math.random() * 30) - 15;
+        const randomY = Math.floor(Math.random() * 30) - 15;
+        wrapper.style.transform = `translate(${randomX}px, ${randomY}px)`;
+      }, 120000); // Shift every 2 minutes
+    }
+
+    // --- AUTO-HIDE UI ON INACTIVITY ---
+    function setupActivityListeners() {
+      ['mousemove', 'mousedown', 'keydown', 'touchstart'].forEach(evt => {
+        window.addEventListener(evt, resetHideUiTimer);
+      });
+    }
+
+    function resetHideUiTimer() {
+      const elements = document.querySelectorAll('.fade-ui');
+      elements.forEach(el => el.style.opacity = '1');
+
+      clearTimeout(hideUiTimeout);
+      hideUiTimeout = setTimeout(() => {
+        elements.forEach(el => el.style.opacity = '0');
+        // Close audio menu if open when fading out
+        document.getElementById('audio-menu').classList.add('hidden');
+      }, 4000);
+    }
+
+    // --- FULLSCREEN ---
+    function toggleFullscreen() {
+      if (!document.fullscreenElement) {
+        document.documentElement.requestFullscreen().catch(err => {});
+      } else {
+        if (document.exitFullscreen) {
+          document.exitFullscreen();
+        }
+      }
+    }
+
+    // --- SETTINGS MODAL & PREFERENCES ---
+    function toggleSettingsModal() {
+      const modal = document.getElementById('settings-modal');
+      modal.classList.toggle('hidden');
+    }
+
+    function toggleSecondsDisplay(enabled) {
+      showSeconds = enabled;
+      document.getElementById('clock-seconds-wrapper').style.display = enabled ? 'inline' : 'none';
+    }
+
+    function toggle24HFormat(enabled) {
+      is24Hour = enabled;
+      updateClock();
+    }
+
+    function toggleBurnInProtection(enabled) {
+      burnInEnabled = enabled;
+      if (!enabled) {
+        document.getElementById('aod-content-wrapper').style.transform = 'translate(0px, 0px)';
+      }
+    }
+
+    function saveSettings() {
+      const workInput = parseInt(document.getElementById('input-pomo-work').value) || 25;
+      const restInput = parseInt(document.getElementById('input-pomo-rest').value) || 5;
+
+      pomoWorkTime = workInput * 60;
+      pomoRestTime = restInput * 60;
+
+      if (!isPomoRunning) {
+        pomoTimeLeft = isPomoBreak ? pomoRestTime : pomoWorkTime;
+        renderPomoDisplay();
+      }
+
+      toggleSettingsModal();
+    }
+
+    function editQuote() {
+      const newQuote = prompt("Escribe tu objetivo o frase de enfoque:", document.getElementById('focus-quote').innerText.replace(/"/g, ''));
+      if (newQuote !== null && newQuote.trim() !== '') {
+        document.getElementById('focus-quote').innerText = `"${newQuote.trim()}"`;
+      }
+    }
+  </script>
+</body>
+</html>
